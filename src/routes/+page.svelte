@@ -1,782 +1,502 @@
 <script lang="ts">
-	import { useQuery, useConvexClient } from "convex-svelte";
+	import { useQuery } from "convex-svelte";
 	import { api } from "../../convex/_generated/api.js";
+	import { onMount } from "svelte";
 
-	const marketsQuery = useQuery(api.markets.listActive, {});
-	const alertsQuery = useQuery(api.alerts.listRecent, { limit: 5 });
-	const agentRunsQuery = useQuery(api.agentRuns.listRecent, { limit: 1 });
+	const marketsQuery = useQuery(api.markets.listActive, () => ({}));
 
-	const client = useConvexClient();
+	// Halftone eye generation
+	let eyeCanvas: string[][] = [];
+	const WIDTH = 80;
+	const HEIGHT = 50;
 
-	function getSeverityColor(severity: "low" | "medium" | "high" | "critical") {
-		const colors = {
-			low: "#22c55e",
-			medium: "#f59e0b",
-			high: "#ef4444",
-			critical: "#a855f7",
-		};
-		return colors[severity];
-	}
+	// Characters by density (light to dark)
+	const CHARS = [' ', '·', '∙', '○', '◐', '●', '◉'];
 
-	function formatTime(timestamp: number) {
-		const diff = Date.now() - timestamp;
-		const minutes = Math.floor(diff / 60000);
-		if (minutes < 1) return "Just now";
-		if (minutes < 60) return `${minutes}m ago`;
-		const hours = Math.floor(minutes / 60);
-		if (hours < 24) return `${hours}h ago`;
-		const days = Math.floor(hours / 24);
-		return `${days}d ago`;
-	}
+	function generateHalftoneEye() {
+		const centerX = WIDTH * 0.5;
+		const centerY = HEIGHT * 0.5;
+		const outerRadius = Math.min(WIDTH, HEIGHT) * 0.45;
+		const irisRadius = outerRadius * 0.45;
+		const pupilRadius = irisRadius * 0.4;
 
-	async function triggerAgentRun() {
-		try {
-			const response = await fetch("/api/agent/trigger", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ marketIds: ["2028-presidential-election"] }),
-			});
-			const result = await response.json();
-			console.log("Agent triggered:", result);
-		} catch (error) {
-			console.error("Failed to trigger agent:", error);
+		const grid: { char: string; isIris: boolean; isPupil: boolean }[][] = [];
+
+		for (let y = 0; y < HEIGHT; y++) {
+			const row: { char: string; isIris: boolean; isPupil: boolean }[] = [];
+			for (let x = 0; x < WIDTH; x++) {
+				const dx = x - centerX;
+				const dy = (y - centerY) * 1.8; // Stretch vertically for eye shape
+				const dist = Math.sqrt(dx * dx + dy * dy);
+
+				// Eye shape (almond)
+				const eyeWidth = outerRadius;
+				const eyeHeight = outerRadius * 0.55;
+				const eyeShape = (dx * dx) / (eyeWidth * eyeWidth) + (dy * dy) / (eyeHeight * eyeHeight);
+
+				// Distance from center for iris/pupil
+				const irisCheck = Math.sqrt((x - centerX) ** 2 + ((y - centerY) * 1.2) ** 2);
+
+				let char = ' ';
+				let isIris = false;
+				let isPupil = false;
+
+				if (eyeShape <= 1) {
+					// Inside eye shape
+					if (irisCheck <= pupilRadius) {
+						// Pupil - darkest
+						isPupil = true;
+						char = CHARS[6];
+					} else if (irisCheck <= irisRadius) {
+						// Iris - gradient
+						isIris = true;
+						const irisGradient = (irisCheck - pupilRadius) / (irisRadius - pupilRadius);
+						const noise = Math.sin(x * 0.8) * Math.cos(y * 0.6) * 0.3;
+						const density = Math.max(0, Math.min(1, 0.7 - irisGradient * 0.4 + noise));
+						const charIndex = Math.floor(density * (CHARS.length - 1));
+						char = CHARS[Math.min(charIndex + 2, CHARS.length - 1)];
+					} else {
+						// Sclera (white of eye) - light with subtle texture
+						const scleraGradient = (irisCheck - irisRadius) / (outerRadius - irisRadius);
+						const edgeDarkening = Math.pow(eyeShape, 2) * 3;
+						const noise = Math.sin(x * 2) * Math.cos(y * 1.5) * 0.15;
+						const density = Math.max(0, Math.min(0.4, edgeDarkening + noise));
+						const charIndex = Math.floor(density * (CHARS.length - 1));
+						char = CHARS[charIndex];
+					}
+				} else if (eyeShape <= 1.15) {
+					// Eye outline/lashes
+					const outlineIntensity = 1 - (eyeShape - 1) / 0.15;
+					const charIndex = Math.floor(outlineIntensity * 3);
+					char = CHARS[Math.min(charIndex + 1, 3)];
+				}
+
+				row.push({ char, isIris, isPupil });
+			}
+			grid.push(row);
 		}
+
+		return grid;
 	}
 
-	// ASCII Art of Argus Panoptes - the hundred-eyed giant
-	const argusAscii = `
-                      .  :  .
-                   .    ◉    .
-                .    .     .    .
-              .   ◉    . .    ◉   .
-            .        .---.        .
-          .    ◉    /  ◉  \\    ◉    .
-         .        ./       \\.        .
-        .   ◉    /    ◉ ◉    \\    ◉   .
-       .        |   .-----.   |        .
-      .    ◉    |  /  ◉ ◉  \\  |    ◉    .
-      .        |  |  .---.  |  |        .
-     .   ◉     |  | ( ◉_◉ ) |  |     ◉   .
-     .         |  |  '---'  |  |         .
-    .    ◉     |  \\   ◉ ◉   /  |     ◉    .
-    .         |    '.___.'    |         .
-    .   ◉      |   ◉  |  ◉   |      ◉   .
-   .          |      |      |          .
-   .    ◉      \\  ◉  |  ◉  /      ◉    .
-   .           \\    |    /           .
-   .   ◉        \\   |   /        ◉   .
-  .             \\◉ | ◉/             .
-  .    ◉         \\ | /         ◉    .
-  .              \\|/              .
-  .   ◉     ◉     |     ◉     ◉   .
-  .              /|\\              .
-  .    ◉        / | \\        ◉    .
-  .            /◉ | ◉\\            .
-   .   ◉      /   |   \\      ◉   .
-   .         /  ◉ | ◉  \\         .
-   .    ◉   /     |     \\   ◉    .
-   .       |   ◉  |  ◉   |       .
-    .   ◉  |      |      |  ◉   .
-    .      |  ◉   |   ◉  |      .
-    .    ◉  \\     |     /  ◉    .
-     .      \\  ◉ | ◉  /      .
-     .   ◉   \\   |   /   ◉   .
-      .       \\  |  /       .
-      .    ◉   \\ | /   ◉    .
-       .        \\|/        .
-        .   ◉    |    ◉   .
-         .      /|\\      .
-          .    / | \\    .
-           .  /  |  \\  .
-            ./   |   \\.
-             .   |   .
-              .  |  .
-               . | .
-                .|.                            `;
+	let eyeGrid: { char: string; isIris: boolean; isPupil: boolean }[][] = [];
+	let mounted = false;
+
+	onMount(() => {
+		eyeGrid = generateHalftoneEye();
+		mounted = true;
+	});
 </script>
 
 <svelte:head>
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
 	<title>Argus — The All-Seeing Eye</title>
 </svelte:head>
 
 <div class="page">
-	<!-- Scanline overlay -->
-	<div class="scanlines"></div>
+	<!-- Noise texture overlay -->
+	<div class="noise"></div>
 
-	<!-- Floating eyes background -->
-	<div class="eyes-bg" aria-hidden="true">
-		{#each Array(40) as _, i}
-			<span
-				class="floating-eye"
-				style="
-					left: {Math.random() * 100}%;
-					top: {Math.random() * 100}%;
-					animation-delay: {Math.random() * 8}s;
-					opacity: {0.02 + Math.random() * 0.06};
-					font-size: {1 + Math.random() * 2}rem;
-				"
-			>◉</span>
-		{/each}
-	</div>
+	<div class="layout">
+		<!-- Left: Content -->
+		<div class="content">
+			<header>
+				<nav>
+					<a href="/markets" class="nav-link">Markets</a>
+				</nav>
+			</header>
 
-	<div class="container">
-		<!-- Header -->
-		<header class="header">
-			<div class="logo-group">
-				<span class="logo-eye">◉</span>
-				<h1 class="logo">ARGUS</h1>
-			</div>
-			<nav class="nav">
-				<a href="/markets" class="nav-link">Markets</a>
-				<a href="/alerts" class="nav-link">Alerts</a>
-				<a href="/accounts" class="nav-link">Accounts</a>
-			</nav>
-		</header>
-
-		<main class="main">
-			<!-- Left: Content -->
-			<div class="content">
+			<main>
 				<div class="hero">
-					<p class="tagline">THE ALL-SEEING EYE</p>
-					<h2 class="headline">Polymarket Insider<br/>Trading Detection</h2>
+					<p class="eyebrow">POLYMARKET SURVEILLANCE</p>
+					<h1 class="wordmark">ARGUS</h1>
+					<p class="tagline">The All-Seeing Eye</p>
+
 					<p class="description">
-						Autonomous AI surveillance monitoring political prediction markets.
-						Some eyes sleep while others watch — Argus never rests.
+						Autonomous detection of insider trading patterns
+						across political prediction markets. Some eyes sleep
+						while others watch.
 					</p>
 				</div>
 
-				<!-- Terminal -->
-				<div class="terminal">
-					<div class="terminal-bar">
-						<span class="dot dot-red"></span>
-						<span class="dot dot-yellow"></span>
-						<span class="dot dot-green"></span>
-						<span class="terminal-title">argus_daemon.log</span>
-					</div>
-					<div class="terminal-body">
-						<p><span class="prompt">$</span> argus --status</p>
-						<p class="output">[{new Date().toISOString().split('T')[0]}] System initialized</p>
-						<p class="output">Monitoring <span class="hl">{$marketsQuery?.length ?? 0}</span> markets</p>
-						<p class="output">Active alerts: <span class="hl alert">{$alertsQuery?.filter((a: any) => a.status === "new").length ?? 0}</span></p>
-						<p class="output">Status: <span class="hl success">WATCHING</span></p>
-						<p class="cursor">█</p>
-					</div>
-				</div>
-
-				<!-- Stats -->
 				<div class="stats">
 					<div class="stat">
-						<span class="stat-icon">◎</span>
-						<div class="stat-data">
-							<span class="stat-value">
-								{#if $marketsQuery}
-									{$marketsQuery.length}
-								{:else}
-									—
-								{/if}
-							</span>
-							<span class="stat-label">Markets</span>
-						</div>
-					</div>
-					<div class="stat stat-alert">
-						<span class="stat-icon">⚠</span>
-						<div class="stat-data">
-							<span class="stat-value">
-								{#if $alertsQuery}
-									{$alertsQuery.length}
-								{:else}
-									—
-								{/if}
-							</span>
-							<span class="stat-label">Alerts</span>
-						</div>
+						<span class="stat-value">
+							{#if marketsQuery.isLoading}
+								<span class="loading">—</span>
+							{:else}
+								{marketsQuery.data?.length ?? 0}
+							{/if}
+						</span>
+						<span class="stat-label">Markets Monitored</span>
 					</div>
 					<div class="stat">
-						<span class="stat-icon">◉</span>
-						<div class="stat-data">
-							<span class="stat-value">100</span>
-							<span class="stat-label">Eyes</span>
-						</div>
-					</div>
-					<div class="stat">
-						<span class="stat-icon">⟁</span>
-						<div class="stat-data">
-							<span class="stat-value">24/7</span>
-							<span class="stat-label">Watch</span>
-						</div>
+						<span class="stat-value status-active">
+							<span class="pulse"></span>
+							ACTIVE
+						</span>
+						<span class="stat-label">Detection Status</span>
 					</div>
 				</div>
 
-				<!-- Recent Alerts -->
-				{#if $alertsQuery && $alertsQuery.length > 0}
-					<div class="alerts-section">
-						<div class="section-head">
-							<h3>Recent Detections</h3>
-							<a href="/alerts" class="link">View all →</a>
-						</div>
-						<div class="alerts-list">
-							{#each $alertsQuery.slice(0, 3) as alert}
-								<a href="/alerts/{alert._id}" class="alert-item">
-									<span class="alert-severity" style="background: {getSeverityColor(alert.severity)}">{alert.severity}</span>
-									<span class="alert-title">{alert.title}</span>
-									<span class="alert-time">{formatTime(alert.createdAt)}</span>
-								</a>
-							{/each}
-						</div>
-					</div>
-				{/if}
+				<a href="/markets" class="cta">
+					View Monitored Markets
+					<span class="arrow">→</span>
+				</a>
+			</main>
 
-				<!-- Agent Control -->
-				<div class="agent-control">
-					<div class="agent-status">
-						{#if $agentRunsQuery?.[0]?.status === "running"}
-							<span class="status-dot running"></span>
-							<span>Agent analyzing</span>
-						{:else}
-							<span class="status-dot idle"></span>
-							<span>Agent idle</span>
-						{/if}
-					</div>
-					<button class="btn" onclick={triggerAgentRun}>
-						<span>▶</span> Trigger Scan
-					</button>
-				</div>
+			<footer>
+				<p class="quote">"He had a hundred eyes, of which only two would sleep at a time."</p>
+				<p class="attribution">— Ovid</p>
+			</footer>
+		</div>
 
-				<!-- Quote -->
-				<footer class="quote">
-					<p>"He had a hundred eyes, of which only two would sleep at a time while the rest kept watch."</p>
-					<cite>— Ovid, Metamorphoses</cite>
-				</footer>
-			</div>
-
-			<!-- Right: ASCII Art -->
-			<aside class="ascii-side" aria-hidden="true">
-				<pre class="ascii-art">{argusAscii}</pre>
-			</aside>
-		</main>
+		<!-- Right: Halftone Eye -->
+		<div class="eye-container" aria-hidden="true">
+			{#if mounted}
+				<pre class="halftone-eye">{#each eyeGrid as row}<span class="eye-row">{#each row as cell}<span class={cell.isPupil ? 'pupil' : cell.isIris ? 'iris' : 'sclera'}>{cell.char}</span>{/each}</span>
+{/each}</pre>
+			{/if}
+		</div>
 	</div>
 </div>
 
 <style>
 	:root {
-		--bg-dark: #030303;
-		--bg-card: #0a0a0a;
-		--bg-hover: #111111;
-		--border: #1a1a1a;
-		--border-light: #252525;
-		--text: #fafafa;
-		--text-dim: #888888;
-		--text-muted: #444444;
+		--bg: #030303;
+		--bg-elevated: #0a0a0a;
+		--text: #e8e8e8;
+		--text-dim: #666666;
+		--text-muted: #333333;
 		--accent: #f59e0b;
-		--accent-glow: rgba(245, 158, 11, 0.2);
-		--alert: #ef4444;
-		--success: #22c55e;
+		--accent-dim: #92610d;
 	}
 
 	:global(*) {
 		box-sizing: border-box;
+		margin: 0;
+		padding: 0;
 	}
 
 	:global(body) {
-		margin: 0;
-		padding: 0;
-		background: var(--bg-dark);
+		background: var(--bg);
 		color: var(--text);
-		font-family: 'JetBrains Mono', 'SF Mono', monospace;
+		font-family: 'JetBrains Mono', monospace;
 		-webkit-font-smoothing: antialiased;
+		overflow-x: hidden;
 	}
 
 	.page {
 		min-height: 100vh;
 		position: relative;
-		overflow: hidden;
 	}
 
-	/* Scanlines */
-	.scanlines {
+	/* Noise texture */
+	.noise {
 		position: fixed;
 		inset: 0;
 		pointer-events: none;
-		z-index: 100;
-		background: repeating-linear-gradient(
-			0deg,
-			rgba(0, 0, 0, 0.15) 0px,
-			rgba(0, 0, 0, 0.15) 1px,
-			transparent 1px,
-			transparent 2px
-		);
-		opacity: 0.4;
+		z-index: 1000;
+		opacity: 0.03;
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
 	}
 
-	/* Floating Eyes */
-	.eyes-bg {
-		position: fixed;
-		inset: 0;
-		pointer-events: none;
-		z-index: 0;
-	}
-
-	.floating-eye {
-		position: absolute;
-		color: var(--accent);
-		animation: drift 20s ease-in-out infinite;
-	}
-
-	@keyframes drift {
-		0%, 100% { transform: translate(0, 0) scale(1); }
-		25% { transform: translate(10px, -15px) scale(1.1); }
-		50% { transform: translate(-5px, 10px) scale(0.95); }
-		75% { transform: translate(15px, 5px) scale(1.05); }
-	}
-
-	.container {
-		max-width: 1400px;
-		margin: 0 auto;
-		padding: 2rem 3rem;
-		position: relative;
-		z-index: 1;
+	.layout {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
 		min-height: 100vh;
+	}
+
+	/* Left content */
+	.content {
 		display: flex;
 		flex-direction: column;
+		padding: 3rem 4rem;
+		position: relative;
+		z-index: 10;
 	}
 
-	/* Header */
-	.header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding-bottom: 2rem;
-		border-bottom: 1px solid var(--border);
+	header {
+		margin-bottom: auto;
 	}
 
-	.logo-group {
+	nav {
 		display: flex;
-		align-items: center;
+	}
+
+	.nav-link {
+		color: var(--text-dim);
+		text-decoration: none;
+		font-size: 0.75rem;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+		padding: 0.5rem 0;
+		border-bottom: 1px solid transparent;
+		transition: all 0.3s ease;
+	}
+
+	.nav-link:hover {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
+	}
+
+	main {
+		display: flex;
+		flex-direction: column;
+		gap: 3rem;
+		padding: 4rem 0;
+	}
+
+	.hero {
+		display: flex;
+		flex-direction: column;
 		gap: 0.75rem;
 	}
 
-	.logo-eye {
-		font-size: 1.75rem;
-		color: var(--accent);
-		animation: glow-pulse 3s ease-in-out infinite;
+	.eyebrow {
+		font-size: 0.65rem;
+		letter-spacing: 0.3em;
+		color: var(--text-muted);
+		font-weight: 500;
 	}
 
-	@keyframes glow-pulse {
-		0%, 100% {
-			text-shadow: 0 0 10px var(--accent-glow), 0 0 30px var(--accent-glow);
-			opacity: 1;
-		}
-		50% {
-			text-shadow: 0 0 20px var(--accent), 0 0 50px var(--accent-glow);
-			opacity: 0.85;
-		}
-	}
-
-	.logo {
+	.wordmark {
 		font-family: 'Instrument Serif', Georgia, serif;
-		font-size: 2rem;
+		font-size: clamp(4rem, 12vw, 8rem);
 		font-weight: 400;
-		letter-spacing: 0.25em;
-		margin: 0;
-		background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+		letter-spacing: 0.05em;
+		line-height: 0.9;
+		background: linear-gradient(
+			180deg,
+			var(--text) 0%,
+			var(--text-dim) 100%
+		);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		background-clip: text;
 	}
 
-	.nav {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.nav-link {
-		padding: 0.5rem 1rem;
-		color: var(--text-dim);
-		text-decoration: none;
-		font-size: 0.8rem;
-		letter-spacing: 0.05em;
-		border: 1px solid transparent;
-		border-radius: 4px;
-		transition: all 0.2s;
-	}
-
-	.nav-link:hover {
-		color: var(--accent);
-		border-color: var(--border-light);
-		background: var(--bg-card);
-	}
-
-	/* Main */
-	.main {
-		flex: 1;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 4rem;
-		padding: 3rem 0;
-		align-items: center;
-	}
-
-	.content {
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-	}
-
-	/* Hero */
 	.tagline {
-		font-size: 0.7rem;
-		letter-spacing: 0.35em;
-		color: var(--accent);
-		margin: 0;
-		font-weight: 600;
-	}
-
-	.headline {
 		font-family: 'Instrument Serif', Georgia, serif;
-		font-size: 3rem;
-		font-weight: 400;
-		line-height: 1.15;
-		margin: 0.75rem 0;
-		letter-spacing: -0.01em;
+		font-style: italic;
+		font-size: 1.5rem;
+		color: var(--accent);
+		margin-top: 0.5rem;
 	}
 
 	.description {
-		font-size: 0.875rem;
-		color: var(--text-dim);
-		line-height: 1.7;
-		margin: 0;
-		max-width: 440px;
-	}
-
-	/* Terminal */
-	.terminal {
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		overflow: hidden;
-	}
-
-	.terminal-bar {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 0.75rem 1rem;
-		background: rgba(255,255,255,0.02);
-		border-bottom: 1px solid var(--border);
-	}
-
-	.dot {
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-	}
-	.dot-red { background: #ff5f57; }
-	.dot-yellow { background: #febc2e; }
-	.dot-green { background: #28c840; }
-
-	.terminal-title {
-		margin-left: 8px;
-		font-size: 0.7rem;
-		color: var(--text-muted);
-	}
-
-	.terminal-body {
-		padding: 1rem;
-		font-size: 0.8rem;
+		font-size: 0.9rem;
 		line-height: 1.8;
-	}
-
-	.terminal-body p { margin: 0; }
-	.prompt { color: var(--success); }
-	.output { color: var(--text-dim); }
-	.hl { color: var(--accent); font-weight: 600; }
-	.hl.alert { color: var(--alert); }
-	.hl.success { color: var(--success); }
-
-	.cursor {
-		animation: blink 1s step-end infinite;
-		color: var(--accent);
-	}
-
-	@keyframes blink {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0; }
+		color: var(--text-dim);
+		max-width: 380px;
+		margin-top: 1rem;
 	}
 
 	/* Stats */
 	.stats {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		gap: 0.75rem;
+		display: flex;
+		gap: 3rem;
 	}
 
 	.stat {
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 1rem;
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		transition: all 0.2s;
-	}
-
-	.stat:hover {
-		border-color: var(--border-light);
-		box-shadow: 0 0 20px rgba(245, 158, 11, 0.05);
-	}
-
-	.stat-alert:hover {
-		border-color: rgba(239, 68, 68, 0.3);
-	}
-
-	.stat-icon {
-		font-size: 1.25rem;
-		color: var(--accent);
-	}
-
-	.stat-alert .stat-icon { color: var(--alert); }
-
-	.stat-data {
 		display: flex;
 		flex-direction: column;
+		gap: 0.5rem;
 	}
 
 	.stat-value {
-		font-size: 1.25rem;
-		font-weight: 700;
+		font-size: 1.75rem;
+		font-weight: 600;
+		color: var(--text);
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.stat-value.status-active {
+		color: var(--accent);
+		font-size: 0.9rem;
+		letter-spacing: 0.1em;
+	}
+
+	.pulse {
+		width: 8px;
+		height: 8px;
+		background: var(--accent);
+		border-radius: 50%;
+		animation: pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% {
+			box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+		}
+		50% {
+			box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+		}
 	}
 
 	.stat-label {
 		font-size: 0.65rem;
-		color: var(--text-muted);
+		letter-spacing: 0.15em;
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
-	}
-
-	/* Alerts Section */
-	.alerts-section {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.section-head {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.section-head h3 {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--text-dim);
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		margin: 0;
-	}
-
-	.link {
-		font-size: 0.7rem;
-		color: var(--text-muted);
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-
-	.link:hover { color: var(--accent); }
-
-	.alerts-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.alert-item {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.75rem 1rem;
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		text-decoration: none;
-		color: var(--text);
-		transition: all 0.2s;
-	}
-
-	.alert-item:hover {
-		border-color: var(--border-light);
-		background: var(--bg-hover);
-	}
-
-	.alert-severity {
-		padding: 0.2rem 0.5rem;
-		border-radius: 3px;
-		font-size: 0.6rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		color: white;
-	}
-
-	.alert-title {
-		flex: 1;
-		font-size: 0.8rem;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.alert-time {
-		font-size: 0.7rem;
 		color: var(--text-muted);
 	}
 
-	/* Agent Control */
-	.agent-control {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1rem;
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: 6px;
+	.loading {
+		animation: fade 1s ease-in-out infinite;
 	}
 
-	.agent-status {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		font-size: 0.8rem;
-		color: var(--text-dim);
-	}
-
-	.status-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-	}
-
-	.status-dot.running {
-		background: var(--success);
-		box-shadow: 0 0 10px var(--success);
-		animation: pulse-dot 2s infinite;
-	}
-
-	.status-dot.idle {
-		background: var(--text-muted);
-	}
-
-	@keyframes pulse-dot {
+	@keyframes fade {
 		0%, 100% { opacity: 1; }
-		50% { opacity: 0.5; }
+		50% { opacity: 0.3; }
 	}
 
-	.btn {
-		display: flex;
+	/* CTA */
+	.cta {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		background: transparent;
-		border: 1px solid var(--border-light);
-		border-radius: 4px;
-		color: var(--text-dim);
-		font-family: inherit;
-		font-size: 0.75rem;
-		cursor: pointer;
-		transition: all 0.2s;
+		gap: 0.75rem;
+		color: var(--text);
+		text-decoration: none;
+		font-size: 0.8rem;
+		letter-spacing: 0.05em;
+		padding: 1rem 0;
+		border-top: 1px solid var(--text-muted);
+		border-bottom: 1px solid var(--text-muted);
+		transition: all 0.3s ease;
+		width: fit-content;
 	}
 
-	.btn:hover {
-		border-color: var(--accent);
+	.cta:hover {
 		color: var(--accent);
-		box-shadow: 0 0 15px var(--accent-glow);
+		border-color: var(--accent);
+		padding-left: 1rem;
 	}
 
-	/* Quote */
+	.arrow {
+		transition: transform 0.3s ease;
+	}
+
+	.cta:hover .arrow {
+		transform: translateX(4px);
+	}
+
+	/* Footer */
+	footer {
+		margin-top: auto;
+		padding-top: 2rem;
+	}
+
 	.quote {
-		padding-top: 1.5rem;
-		border-top: 1px solid var(--border);
-	}
-
-	.quote p {
 		font-family: 'Instrument Serif', Georgia, serif;
 		font-style: italic;
 		font-size: 0.9rem;
 		color: var(--text-dim);
 		line-height: 1.6;
-		margin: 0 0 0.5rem;
 	}
 
-	.quote cite {
+	.attribution {
 		font-size: 0.7rem;
 		color: var(--text-muted);
-		font-style: normal;
+		margin-top: 0.5rem;
+		letter-spacing: 0.1em;
 	}
 
-	/* ASCII Art */
-	.ascii-side {
+	/* Halftone Eye */
+	.eye-container {
+		position: relative;
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		height: 100%;
+		justify-content: flex-start;
+		overflow: hidden;
+		padding-left: 2rem;
 	}
 
-	.ascii-art {
+	.halftone-eye {
 		font-family: 'JetBrains Mono', monospace;
-		font-size: 0.55rem;
-		line-height: 1.15;
+		font-size: clamp(0.35rem, 0.9vw, 0.55rem);
+		line-height: 1.1;
+		letter-spacing: 0.1em;
 		color: var(--text-muted);
 		white-space: pre;
-		margin: 0;
-		opacity: 0.5;
-		text-shadow: 0 0 30px var(--accent-glow);
-		animation: ascii-breathe 6s ease-in-out infinite;
+		user-select: none;
+		animation: eye-breathe 8s ease-in-out infinite;
 	}
 
-	@keyframes ascii-breathe {
-		0%, 100% { opacity: 0.4; }
-		50% { opacity: 0.6; }
+	@keyframes eye-breathe {
+		0%, 100% {
+			opacity: 0.8;
+			filter: blur(0px);
+		}
+		50% {
+			opacity: 1;
+			filter: blur(0.3px);
+		}
+	}
+
+	.eye-row {
+		display: block;
+	}
+
+	.sclera {
+		color: #444;
+	}
+
+	.iris {
+		color: var(--accent);
+		text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+		animation: iris-glow 4s ease-in-out infinite;
+	}
+
+	@keyframes iris-glow {
+		0%, 100% {
+			text-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+		}
+		50% {
+			text-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
+		}
+	}
+
+	.pupil {
+		color: #111;
+		text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
 	}
 
 	/* Responsive */
-	@media (max-width: 1100px) {
-		.main {
+	@media (max-width: 1024px) {
+		.layout {
 			grid-template-columns: 1fr;
+			grid-template-rows: 1fr auto;
 		}
 
-		.ascii-side {
-			display: none;
+		.eye-container {
+			position: absolute;
+			inset: 0;
+			opacity: 0.15;
+			justify-content: center;
+			padding: 0;
 		}
 
-		.stats {
-			grid-template-columns: repeat(2, 1fr);
+		.content {
+			padding: 2rem;
 		}
 	}
 
 	@media (max-width: 640px) {
-		.container {
-			padding: 1.5rem;
-		}
-
-		.header {
-			flex-direction: column;
-			gap: 1rem;
-		}
-
-		.headline {
-			font-size: 2rem;
+		.wordmark {
+			font-size: 3.5rem;
 		}
 
 		.stats {
-			grid-template-columns: 1fr 1fr;
+			flex-direction: column;
+			gap: 1.5rem;
 		}
 
-		.nav {
-			width: 100%;
-			justify-content: center;
+		.content {
+			padding: 1.5rem;
 		}
 	}
 </style>

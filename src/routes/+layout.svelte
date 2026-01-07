@@ -13,7 +13,7 @@
 	setupConvex(PUBLIC_CONVEX_URL);
 
 	// Check if we're on the home page (landing page gets full-screen treatment)
-	$: isLandingPage = $page.url.pathname === "/";
+	let isLandingPage = $derived($page.url.pathname === "/");
 </script>
 
 <svelte:head>
@@ -36,8 +36,6 @@
 				</a>
 				<div class="nav-links">
 					<a href="/markets" class:active={$page.url.pathname === "/markets"}>Markets</a>
-					<a href="/alerts" class:active={$page.url.pathname === "/alerts"}>Alerts</a>
-					<a href="/accounts" class:active={$page.url.pathname === "/accounts"}>Accounts</a>
 				</div>
 			</nav>
 		</header>

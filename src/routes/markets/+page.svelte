@@ -2,7 +2,7 @@
 	import { useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 
-	const marketsQuery = useQuery(api.markets.listActive, {});
+	const marketsQuery = useQuery(api.markets.listActive, () => ({}));
 
 	function formatVolume(vol: number) {
 		if (vol >= 1000000) return `$${(vol / 1000000).toFixed(1)}M`;
@@ -51,12 +51,12 @@
 	</header>
 
 	<div class="markets-grid">
-		{#if $marketsQuery === undefined}
+		{#if marketsQuery.isLoading}
 			<div class="loading">
 				<span class="loading-eye">◉</span>
 				<p>Loading markets...</p>
 			</div>
-		{:else if $marketsQuery?.length === 0}
+		{:else if !marketsQuery.data || marketsQuery.data.length === 0}
 			<div class="empty-state">
 				<span class="empty-icon">◎</span>
 				<h3>No markets being monitored</h3>
@@ -64,7 +64,7 @@
 				<button class="sync-btn" onclick={syncMarkets}>Sync from Polymarket</button>
 			</div>
 		{:else}
-			{#each $marketsQuery ?? [] as market}
+			{#each marketsQuery.data as market}
 				<div class="market-card">
 					<div class="market-header">
 						<span class="category-badge">{market.category}</span>
