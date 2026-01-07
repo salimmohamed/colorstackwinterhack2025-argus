@@ -1,50 +1,8 @@
 <script lang="ts">
-	// In production, fetch from Convex
-	const markets = [
-		{
-			id: "1",
-			polymarketId: "0x1234...5678",
-			slug: "2028-presidential-election",
-			question: "Who will win the 2028 US Presidential Election?",
-			category: "politics",
-			isActive: true,
-			totalVolume: 2500000,
-			outcomes: [
-				{ name: "Republican", price: 0.52 },
-				{ name: "Democrat", price: 0.45 },
-				{ name: "Other", price: 0.03 },
-			],
-			lastSyncedAt: new Date(Date.now() - 5 * 60 * 1000),
-		},
-		{
-			id: "2",
-			polymarketId: "0x5678...9abc",
-			slug: "trump-2028-nominee",
-			question: "Will Trump be the Republican nominee in 2028?",
-			category: "politics",
-			isActive: true,
-			totalVolume: 890000,
-			outcomes: [
-				{ name: "Yes", price: 0.72 },
-				{ name: "No", price: 0.28 },
-			],
-			lastSyncedAt: new Date(Date.now() - 15 * 60 * 1000),
-		},
-		{
-			id: "3",
-			polymarketId: "0x9abc...def0",
-			slug: "senate-control-2026",
-			question: "Which party will control the Senate after 2026?",
-			category: "politics",
-			isActive: true,
-			totalVolume: 450000,
-			outcomes: [
-				{ name: "Republican", price: 0.58 },
-				{ name: "Democrat", price: 0.42 },
-			],
-			lastSyncedAt: new Date(Date.now() - 30 * 60 * 1000),
-		},
-	];
+	import { useQuery } from "convex-svelte";
+	import { api } from "../../../convex/_generated/api.js";
+
+	const marketsQuery = useQuery(api.markets.listActive, {});
 
 	function formatVolume(vol: number) {
 		if (vol >= 1000000) return `$${(vol / 1000000).toFixed(1)}M`;
@@ -52,8 +10,8 @@
 		return `$${vol}`;
 	}
 
-	function formatTime(date: Date) {
-		const diff = Date.now() - date.getTime();
+	function formatTime(timestamp: number) {
+		const diff = Date.now() - timestamp;
 		const minutes = Math.floor(diff / 60000);
 		if (minutes < 60) return `${minutes} min ago`;
 		const hours = Math.floor(minutes / 60);
@@ -68,27 +26,36 @@
 	</header>
 
 	<div class="markets-grid">
-		{#each markets as market}
-			<div class="market-card">
-				<div class="market-header">
-					<span class="category-badge">{market.category}</span>
-					<span class="status-indicator active"></span>
-				</div>
-				<h3>{market.question}</h3>
-				<div class="outcomes">
-					{#each market.outcomes as outcome}
-						<div class="outcome">
-							<span class="outcome-name">{outcome.name}</span>
-							<span class="outcome-price">{(outcome.price * 100).toFixed(0)}%</span>
-						</div>
-					{/each}
-				</div>
-				<div class="market-footer">
-					<span class="volume">Volume: {formatVolume(market.totalVolume)}</span>
-					<span class="synced">Synced {formatTime(market.lastSyncedAt)}</span>
-				</div>
+		{#if marketsQuery.isLoading}
+			<div class="loading">Loading markets...</div>
+		{:else if marketsQuery.data?.length === 0}
+			<div class="empty-state">
+				<h3>No markets being monitored</h3>
+				<p>Add a Polymarket market to start monitoring for insider trading.</p>
 			</div>
-		{/each}
+		{:else}
+			{#each marketsQuery.data ?? [] as market}
+				<div class="market-card">
+					<div class="market-header">
+						<span class="category-badge">{market.category}</span>
+						<span class="status-indicator active"></span>
+					</div>
+					<h3>{market.question}</h3>
+					<div class="outcomes">
+						{#each market.outcomes as outcome}
+							<div class="outcome">
+								<span class="outcome-name">{outcome.name}</span>
+								<span class="outcome-price">{(outcome.price * 100).toFixed(0)}%</span>
+							</div>
+						{/each}
+					</div>
+					<div class="market-footer">
+						<span class="volume">Volume: {formatVolume(market.totalVolume)}</span>
+						<span class="synced">Synced {formatTime(market.lastSyncedAt)}</span>
+					</div>
+				</div>
+			{/each}
+		{/if}
 	</div>
 </div>
 
@@ -203,5 +170,25 @@
 		justify-content: space-between;
 		color: #666;
 		font-size: 0.875rem;
+	}
+
+	.loading,
+	.empty-state {
+		background: white;
+		border-radius: 8px;
+		padding: 3rem;
+		text-align: center;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+		grid-column: 1 / -1;
+	}
+
+	.empty-state h3 {
+		margin: 0 0 0.5rem;
+		color: #1a1a2e;
+	}
+
+	.empty-state p {
+		margin: 0;
+		color: #666;
 	}
 </style>
