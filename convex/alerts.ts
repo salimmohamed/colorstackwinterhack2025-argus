@@ -80,8 +80,13 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const now = Date.now();
 
+		// Get account address for denormalized display
+		const account = await ctx.db.get(args.accountId);
+		if (!account) throw new Error(`Account not found: ${args.accountId}`);
+
 		const alertId = await ctx.db.insert("alerts", {
 			...args,
+			accountAddress: account.address,
 			status: "new",
 			createdAt: now,
 			updatedAt: now,

@@ -1,35 +1,12 @@
 <script lang="ts">
-	// Dashboard metrics (in production, fetch from Convex)
-	const stats = {
-		marketsMonitored: 5,
-		accountsAnalyzed: 127,
-		alertsGenerated: 3,
-		lastRunTime: "2 minutes ago",
-	};
+	import { useQuery, useConvexClient } from "convex-svelte";
+	import { api } from "../../convex/_generated/api.js";
 
-	const recentAlerts = [
-		{
-			id: "1",
-			severity: "high" as const,
-			title: "New account with $45K bet on 2028 Election",
-			account: "0x7f3a...9b2c",
-			timestamp: "10 min ago",
-		},
-		{
-			id: "2",
-			severity: "medium" as const,
-			title: "Account name changed to random string",
-			account: "0x2b1d...8e4f",
-			timestamp: "45 min ago",
-		},
-		{
-			id: "3",
-			severity: "low" as const,
-			title: "Unusual win rate detected (85%)",
-			account: "0x9c4e...1a7b",
-			timestamp: "2 hours ago",
-		},
-	];
+	const marketsQuery = useQuery(api.markets.listActive, {});
+	const alertsQuery = useQuery(api.alerts.listRecent, { limit: 5 });
+	const agentRunsQuery = useQuery(api.agentRuns.listRecent, { limit: 1 });
+
+	const client = useConvexClient();
 
 	function getSeverityColor(severity: "low" | "medium" | "high" | "critical") {
 		const colors = {
@@ -40,6 +17,31 @@
 		};
 		return colors[severity];
 	}
+
+	function formatTime(timestamp: number) {
+		const diff = Date.now() - timestamp;
+		const minutes = Math.floor(diff / 60000);
+		if (minutes < 1) return "Just now";
+		if (minutes < 60) return `${minutes} min ago`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 24) return `${hours} hours ago`;
+		const days = Math.floor(hours / 24);
+		return `${days} days ago`;
+	}
+
+	async function triggerAgentRun() {
+		try {
+			const response = await fetch("/api/agent/trigger", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ marketIds: ["2028-presidential-election"] }),
+			});
+			const result = await response.json();
+			console.log("Agent triggered:", result);
+		} catch (error) {
+			console.error("Failed to trigger agent:", error);
+		}
+	}
 </script>
 
 <div class="dashboard">
@@ -48,19 +50,45 @@
 	<section class="stats-grid">
 		<div class="stat-card">
 			<h3>Markets Monitored</h3>
-			<p class="stat-value">{stats.marketsMonitored}</p>
+			<p class="stat-value">
+				{#if marketsQuery.isLoading}
+					...
+				{:else}
+					{marketsQuery.data?.length ?? 0}
+				{/if}
+			</p>
 		</div>
 		<div class="stat-card">
-			<h3>Accounts Analyzed</h3>
-			<p class="stat-value">{stats.accountsAnalyzed}</p>
+			<h3>Accounts Flagged</h3>
+			<p class="stat-value">
+				{#if alertsQuery.isLoading}
+					...
+				{:else}
+					{alertsQuery.data?.length ?? 0}
+				{/if}
+			</p>
 		</div>
 		<div class="stat-card">
-			<h3>Alerts Generated</h3>
-			<p class="stat-value">{stats.alertsGenerated}</p>
+			<h3>Active Alerts</h3>
+			<p class="stat-value">
+				{#if alertsQuery.isLoading}
+					...
+				{:else}
+					{alertsQuery.data?.filter((a) => a.status === "new").length ?? 0}
+				{/if}
+			</p>
 		</div>
 		<div class="stat-card">
 			<h3>Last Agent Run</h3>
-			<p class="stat-value time">{stats.lastRunTime}</p>
+			<p class="stat-value time">
+				{#if agentRunsQuery.isLoading}
+					...
+				{:else if agentRunsQuery.data?.[0]}
+					{formatTime(agentRunsQuery.data[0].startedAt)}
+				{:else}
+					Never
+				{/if}
+			</p>
 		</div>
 	</section>
 
@@ -71,31 +99,42 @@
 		</div>
 
 		<div class="alerts-list">
-			{#each recentAlerts as alert}
-				<a href="/alerts/{alert.id}" class="alert-card">
-					<span
-						class="severity-badge"
-						style="background-color: {getSeverityColor(alert.severity)}"
-					>
-						{alert.severity}
-					</span>
-					<div class="alert-content">
-						<h4>{alert.title}</h4>
-						<p class="alert-meta">
-							Account: {alert.account} • {alert.timestamp}
-						</p>
-					</div>
-				</a>
-			{/each}
+			{#if alertsQuery.isLoading}
+				<div class="loading">Loading alerts...</div>
+			{:else if alertsQuery.data?.length === 0}
+				<div class="empty-state">No alerts yet. The agent will flag suspicious activity.</div>
+			{:else}
+				{#each alertsQuery.data ?? [] as alert}
+					<a href="/alerts/{alert._id}" class="alert-card">
+						<span
+							class="severity-badge"
+							style="background-color: {getSeverityColor(alert.severity)}"
+						>
+							{alert.severity}
+						</span>
+						<div class="alert-content">
+							<h4>{alert.title}</h4>
+							<p class="alert-meta">
+								Account: {alert.accountAddress.slice(0, 6)}...{alert.accountAddress.slice(-4)} • {formatTime(alert.createdAt)}
+							</p>
+						</div>
+					</a>
+				{/each}
+			{/if}
 		</div>
 	</section>
 
 	<section class="agent-section">
 		<h2>Agent Status</h2>
 		<div class="agent-status">
-			<div class="status-indicator running"></div>
-			<span>Agent is monitoring markets</span>
-			<button class="trigger-btn">Trigger Manual Run</button>
+			{#if agentRunsQuery.data?.[0]?.status === "running"}
+				<div class="status-indicator running"></div>
+				<span>Agent is analyzing markets</span>
+			{:else}
+				<div class="status-indicator idle"></div>
+				<span>Agent is idle</span>
+			{/if}
+			<button class="trigger-btn" onclick={triggerAgentRun}>Trigger Manual Run</button>
 		</div>
 	</section>
 </div>
@@ -236,6 +275,10 @@
 		animation: pulse 2s infinite;
 	}
 
+	.status-indicator.idle {
+		background: #9e9e9e;
+	}
+
 	@keyframes pulse {
 		0% {
 			box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
@@ -261,5 +304,15 @@
 
 	.trigger-btn:hover {
 		background: #2a2a4e;
+	}
+
+	.loading,
+	.empty-state {
+		background: white;
+		border-radius: 8px;
+		padding: 2rem;
+		text-align: center;
+		color: #666;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 </style>

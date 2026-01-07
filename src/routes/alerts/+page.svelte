@@ -1,37 +1,8 @@
 <script lang="ts">
-	// In production, fetch from Convex
-	const alerts = [
-		{
-			id: "1",
-			severity: "high" as const,
-			signalType: "new_account_large_bet",
-			title: "New account with $45K bet on 2028 Election",
-			account: "0x7f3a...9b2c",
-			market: "2028 Presidential Election",
-			createdAt: new Date(Date.now() - 10 * 60 * 1000),
-			status: "new" as const,
-		},
-		{
-			id: "2",
-			severity: "medium" as const,
-			signalType: "account_obfuscation",
-			title: "Account name changed to random string",
-			account: "0x2b1d...8e4f",
-			market: "Who will win 2028?",
-			createdAt: new Date(Date.now() - 45 * 60 * 1000),
-			status: "investigating" as const,
-		},
-		{
-			id: "3",
-			severity: "low" as const,
-			signalType: "statistical_improbability",
-			title: "Unusual win rate detected (85%)",
-			account: "0x9c4e...1a7b",
-			market: "Various political markets",
-			createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-			status: "new" as const,
-		},
-	];
+	import { useQuery } from "convex-svelte";
+	import { api } from "../../../convex/_generated/api.js";
+
+	const alertsQuery = useQuery(api.alerts.listRecent, { limit: 50 });
 
 	function getSeverityColor(severity: "low" | "medium" | "high" | "critical") {
 		const colors = {
@@ -43,9 +14,10 @@
 		return colors[severity];
 	}
 
-	function formatTime(date: Date) {
-		const diff = Date.now() - date.getTime();
+	function formatTime(timestamp: number) {
+		const diff = Date.now() - timestamp;
 		const minutes = Math.floor(diff / 60000);
+		if (minutes < 1) return "Just now";
 		if (minutes < 60) return `${minutes} min ago`;
 		const hours = Math.floor(minutes / 60);
 		if (hours < 24) return `${hours} hours ago`;
@@ -75,26 +47,34 @@
 	</header>
 
 	<div class="alerts-list">
-		{#each alerts as alert}
-			<a href="/alerts/{alert.id}" class="alert-card">
-				<div class="alert-header">
-					<span
-						class="severity-badge"
-						style="background-color: {getSeverityColor(alert.severity)}"
-					>
-						{alert.severity}
-					</span>
-					<span class="signal-type">{alert.signalType.replace(/_/g, " ")}</span>
-					<span class="status-badge {alert.status}">{alert.status}</span>
-				</div>
-				<h3>{alert.title}</h3>
-				<div class="alert-meta">
-					<span>Account: {alert.account}</span>
-					<span>Market: {alert.market}</span>
-					<span>{formatTime(alert.createdAt)}</span>
-				</div>
-			</a>
-		{/each}
+		{#if alertsQuery.isLoading}
+			<div class="loading">Loading alerts...</div>
+		{:else if alertsQuery.data?.length === 0}
+			<div class="empty-state">
+				<h3>No alerts yet</h3>
+				<p>The agent will create alerts when it detects suspicious activity.</p>
+			</div>
+		{:else}
+			{#each alertsQuery.data ?? [] as alert}
+				<a href="/alerts/{alert._id}" class="alert-card">
+					<div class="alert-header">
+						<span
+							class="severity-badge"
+							style="background-color: {getSeverityColor(alert.severity)}"
+						>
+							{alert.severity}
+						</span>
+						<span class="signal-type">{alert.signalType.replace(/_/g, " ")}</span>
+						<span class="status-badge {alert.status}">{alert.status}</span>
+					</div>
+					<h3>{alert.title}</h3>
+					<div class="alert-meta">
+						<span>Account: {alert.accountAddress.slice(0, 6)}...{alert.accountAddress.slice(-4)}</span>
+						<span>{formatTime(alert.createdAt)}</span>
+					</div>
+				</a>
+			{/each}
+		{/if}
 	</div>
 </div>
 
@@ -210,5 +190,24 @@
 		gap: 1.5rem;
 		color: #666;
 		font-size: 0.875rem;
+	}
+
+	.loading,
+	.empty-state {
+		background: white;
+		border-radius: 8px;
+		padding: 3rem;
+		text-align: center;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	}
+
+	.empty-state h3 {
+		margin: 0 0 0.5rem;
+		color: #1a1a2e;
+	}
+
+	.empty-state p {
+		margin: 0;
+		color: #666;
 	}
 </style>

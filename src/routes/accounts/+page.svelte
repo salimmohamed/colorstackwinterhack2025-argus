@@ -1,37 +1,8 @@
 <script lang="ts">
-	// In production, fetch from Convex
-	const accounts = [
-		{
-			address: "0x7f3a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
-			displayName: "SuspiciousTrader42",
-			riskScore: 87,
-			isFlagged: true,
-			totalTrades: 12,
-			totalVolume: 145000,
-			winRate: 0.83,
-			accountAgeDays: 14,
-		},
-		{
-			address: "0x2b1d8e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d",
-			displayName: "3f8a2b1c9d0e",
-			riskScore: 65,
-			isFlagged: true,
-			totalTrades: 45,
-			totalVolume: 89000,
-			winRate: 0.67,
-			accountAgeDays: 21,
-		},
-		{
-			address: "0x9c4e1a7b2f3d8e5a6b0c9d4e7f8a1b2c3d5e6f7a",
-			displayName: "PoliticalBettor",
-			riskScore: 42,
-			isFlagged: false,
-			totalTrades: 156,
-			totalVolume: 234000,
-			winRate: 0.85,
-			accountAgeDays: 180,
-		},
-	];
+	import { useQuery } from "convex-svelte";
+	import { api } from "../../../convex/_generated/api.js";
+
+	const accountsQuery = useQuery(api.accounts.listFlagged, {});
 
 	function getRiskColor(score: number) {
 		if (score >= 70) return "#f44336";
@@ -52,11 +23,8 @@
 
 <div class="accounts-page">
 	<header class="page-header">
-		<h1>Accounts</h1>
+		<h1>Flagged Accounts</h1>
 		<div class="filters">
-			<label>
-				<input type="checkbox" checked /> Flagged Only
-			</label>
 			<select>
 				<option value="riskScore">Sort by Risk Score</option>
 				<option value="volume">Sort by Volume</option>
@@ -65,39 +33,49 @@
 		</div>
 	</header>
 
-	<div class="accounts-table">
-		<div class="table-header">
-			<span>Account</span>
-			<span>Risk Score</span>
-			<span>Trades</span>
-			<span>Volume</span>
-			<span>Win Rate</span>
-			<span>Age</span>
+	{#if accountsQuery.isLoading}
+		<div class="loading">Loading accounts...</div>
+	{:else if accountsQuery.data?.length === 0}
+		<div class="empty-state">
+			<h3>No flagged accounts</h3>
+			<p>Accounts will appear here when the agent flags suspicious activity.</p>
 		</div>
-		{#each accounts as account}
-			<a
-				href="/accounts/{account.address}"
-				class="table-row"
-				class:flagged={account.isFlagged}
-			>
-				<div class="account-cell">
-					<span class="address">{shortenAddress(account.address)}</span>
-					<span class="display-name">{account.displayName}</span>
-				</div>
-				<div class="risk-cell">
-					<div
-						class="risk-bar"
-						style="width: {account.riskScore}%; background: {getRiskColor(account.riskScore)}"
-					></div>
-					<span>{account.riskScore}</span>
-				</div>
-				<span>{account.totalTrades}</span>
-				<span>{formatVolume(account.totalVolume)}</span>
-				<span>{(account.winRate * 100).toFixed(0)}%</span>
-				<span>{account.accountAgeDays} days</span>
-			</a>
-		{/each}
-	</div>
+	{:else}
+		<div class="accounts-table">
+			<div class="table-header">
+				<span>Account</span>
+				<span>Risk Score</span>
+				<span>Trades</span>
+				<span>Volume</span>
+				<span>Win Rate</span>
+				<span>Age</span>
+			</div>
+			{#each accountsQuery.data ?? [] as account}
+				<a
+					href="/accounts/{account.address}"
+					class="table-row flagged"
+				>
+					<div class="account-cell">
+						<span class="address">{shortenAddress(account.address)}</span>
+						{#if account.displayName}
+							<span class="display-name">{account.displayName}</span>
+						{/if}
+					</div>
+					<div class="risk-cell">
+						<div
+							class="risk-bar"
+							style="width: {account.riskScore}%; background: {getRiskColor(account.riskScore)}"
+						></div>
+						<span>{account.riskScore}</span>
+					</div>
+					<span>{account.totalTrades ?? 0}</span>
+					<span>{formatVolume(account.totalVolume ?? 0)}</span>
+					<span>{((account.winRate ?? 0) * 100).toFixed(0)}%</span>
+					<span>{account.accountAgeDays ?? "?"} days</span>
+				</a>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -123,13 +101,6 @@
 		display: flex;
 		gap: 1rem;
 		align-items: center;
-	}
-
-	.filters label {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		cursor: pointer;
 	}
 
 	.filters select {
@@ -203,5 +174,24 @@
 		height: 8px;
 		border-radius: 4px;
 		max-width: 60px;
+	}
+
+	.loading,
+	.empty-state {
+		background: white;
+		border-radius: 8px;
+		padding: 3rem;
+		text-align: center;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	}
+
+	.empty-state h3 {
+		margin: 0 0 0.5rem;
+		color: #1a1a2e;
+	}
+
+	.empty-state p {
+		margin: 0;
+		color: #666;
 	}
 </style>

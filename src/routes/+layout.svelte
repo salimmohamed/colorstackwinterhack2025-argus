@@ -1,11 +1,15 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
+	import { PUBLIC_CONVEX_URL } from "$env/static/public";
+	import { setupConvex } from "convex-svelte";
 
 	interface Props {
 		children: Snippet;
 	}
 
 	let { children }: Props = $props();
+
+	setupConvex(PUBLIC_CONVEX_URL);
 </script>
 
 <svelte:head>
