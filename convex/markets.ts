@@ -1,14 +1,28 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get all active markets
+// Get all active markets, sorted by volume
 export const listActive = query({
 	args: {},
 	handler: async (ctx) => {
-		return await ctx.db
+		const markets = await ctx.db
 			.query("markets")
 			.withIndex("by_active", (q) => q.eq("isActive", true))
 			.collect();
+		// Sort by volume descending
+		return markets.sort((a, b) => b.totalVolume - a.totalVolume);
+	},
+});
+
+// Delete all markets (for cleanup)
+export const deleteAll = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const markets = await ctx.db.query("markets").collect();
+		for (const market of markets) {
+			await ctx.db.delete(market._id);
+		}
+		return { deleted: markets.length };
 	},
 });
 
