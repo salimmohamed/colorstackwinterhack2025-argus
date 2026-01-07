@@ -2,7 +2,7 @@
 	import { useQuery } from "convex-svelte";
 	import { api } from "../../../convex/_generated/api.js";
 
-	const alertsQuery = useQuery(api.alerts.listRecent, { limit: 50 });
+	const alertsQuery = useQuery(api.alerts.listRecent, () => ({ limit: 50 }));
 
 	function getSeverityColor(severity: "low" | "medium" | "high" | "critical") {
 		const colors = {
@@ -54,19 +54,19 @@
 	</header>
 
 	<div class="alerts-list">
-		{#if $alertsQuery === undefined}
+		{#if alertsQuery.isLoading}
 			<div class="loading">
 				<span class="loading-eye">◉</span>
 				<p>Loading alerts...</p>
 			</div>
-		{:else if $alertsQuery?.length === 0}
+		{:else if !alertsQuery.data || alertsQuery.data.length === 0}
 			<div class="empty-state">
 				<span class="empty-icon">◎</span>
 				<h3>No alerts detected</h3>
 				<p>The agent will create alerts when it detects suspicious trading activity.</p>
 			</div>
 		{:else}
-			{#each $alertsQuery ?? [] as alert}
+			{#each alertsQuery.data as alert}
 				<a href="/alerts/{alert._id}" class="alert-card">
 					<div class="alert-header">
 						<span class="severity-badge" style="background-color: {getSeverityColor(alert.severity)}">
