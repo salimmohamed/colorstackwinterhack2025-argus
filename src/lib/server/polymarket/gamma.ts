@@ -139,5 +139,111 @@ export class GammaClient {
 	}
 }
 
+/**
+ * Event from Polymarket (groups related markets)
+ */
+export interface GammaEvent {
+	id: string;
+	slug: string;
+	title: string;
+	description: string | null;
+	volume: number;
+	liquidity: number;
+	markets: GammaMarket[];
+	active: boolean;
+	closed: boolean;
+	endDate: string | null;
+}
+
+export interface GetEventsParams {
+	active?: boolean;
+	closed?: boolean;
+	limit?: number;
+	offset?: number;
+}
+
+// Add events methods to the class
+GammaClient.prototype.getEvents = async function (
+	params: GetEventsParams = {},
+): Promise<GammaEvent[]> {
+	const searchParams = new URLSearchParams();
+
+	if (params.active !== undefined)
+		searchParams.set("active", String(params.active));
+	if (params.closed !== undefined)
+		searchParams.set("closed", String(params.closed));
+	if (params.limit) searchParams.set("limit", String(params.limit));
+	if (params.offset) searchParams.set("offset", String(params.offset));
+
+	const url = `${this.baseUrl}/events?${searchParams}`;
+	const response = await fetch(url);
+
+	if (!response.ok) {
+		throw new Error(
+			`Gamma API error: ${response.status} ${response.statusText}`,
+		);
+	}
+
+	return response.json();
+};
+
+GammaClient.prototype.getEventBySlug = async function (
+	slug: string,
+): Promise<GammaEvent | null> {
+	const url = `${this.baseUrl}/events/slug/${encodeURIComponent(slug)}`;
+	const response = await fetch(url);
+
+	if (response.status === 404) {
+		return null;
+	}
+
+	if (!response.ok) {
+		throw new Error(
+			`Gamma API error: ${response.status} ${response.statusText}`,
+		);
+	}
+
+	return response.json();
+};
+
+/**
+ * Get top political events by volume
+ */
+GammaClient.prototype.getTopPoliticalEvents = async function (
+	limit = 10,
+): Promise<GammaEvent[]> {
+	const events = await this.getEvents({
+		active: true,
+		closed: false,
+		limit: 100,
+	});
+
+	// Filter for political events and sort by volume
+	const politicalKeywords = [
+		"president",
+		"election",
+		"nominee",
+		"trump",
+		"democrat",
+		"republican",
+		"fed",
+		"congress",
+		"senate",
+		"governor",
+		"vote",
+		"poll",
+	];
+
+	const politicalEvents = events.filter((event: GammaEvent) => {
+		const title = event.title.toLowerCase();
+		return politicalKeywords.some((kw) => title.includes(kw));
+	});
+
+	// Sort by volume descending
+	politicalEvents.sort((a: GammaEvent, b: GammaEvent) => b.volume - a.volume);
+
+	return politicalEvents.slice(0, limit);
+};
+
 // Singleton instance
 export const gammaClient = new GammaClient();
