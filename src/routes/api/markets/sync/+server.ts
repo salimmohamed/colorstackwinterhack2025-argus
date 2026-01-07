@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { gammaClient, type GammaMarket } from "$lib/server/polymarket/gamma";
+import { gammaClient, type GammaEvent } from "$lib/server/polymarket/gamma";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import { PUBLIC_CONVEX_URL } from "$env/static/public";
@@ -8,77 +8,81 @@ import { PUBLIC_CONVEX_URL } from "$env/static/public";
 const convex = new ConvexHttpClient(PUBLIC_CONVEX_URL);
 
 /**
- * Convert Gamma market to our Convex format
+ * Convert Gamma event to our Convex market format
+ * Events are the main "markets" shown on Polymarket (e.g., "2028 Presidential Election")
  */
-function convertToConvexMarket(market: GammaMarket) {
-	// Parse outcomes and prices
-	let outcomes: { name: string; tokenId: string; price: number }[] = [];
+function convertEventToConvexMarket(event: GammaEvent) {
+	// For events with multiple outcomes, combine them
+	const outcomes = event.markets.map((market) => {
+		// Parse the outcome prices
+		let price = 0.5;
+		try {
+			const prices = JSON.parse(market.outcomePrices || "[]") as string[];
+			price = parseFloat(prices[0] || "0.5");
+		} catch {
+			// Use default
+		}
 
-	try {
-		const outcomeNames = JSON.parse(market.outcomes || "[]") as string[];
-		const outcomePrices = JSON.parse(market.outcomePrices || "[]") as string[];
+		// Get the outcome name (usually the question minus the event title)
+		const name = market.question?.replace(event.title, "").trim() || market.slug || "Unknown";
 
-		outcomes = outcomeNames.map((name, i) => ({
-			name,
-			tokenId: market.conditionId + "-" + i,
-			price: parseFloat(outcomePrices[i] || "0"),
-		}));
-	} catch {
-		console.warn(`Failed to parse outcomes for ${market.slug}`);
-	}
+		return {
+			name: name.replace(/^Will\s+/i, "").replace(/\?$/, ""),
+			tokenId: market.conditionId,
+			price,
+		};
+	});
 
 	return {
-		polymarketId: market.conditionId,
-		slug: market.slug || market.id,
-		question: market.question || "Unknown",
-		category: market.category || "politics",
-		endDate: market.endDate ? new Date(market.endDate).getTime() : undefined,
-		isActive: market.active ?? true,
-		totalVolume: market.volumeNum || 0,
-		outcomes,
+		polymarketId: event.id,
+		slug: event.slug,
+		question: event.title,
+		category: "politics",
+		endDate: event.endDate ? new Date(event.endDate).getTime() : undefined,
+		isActive: event.active,
+		totalVolume: event.volume,
+		outcomes: outcomes.slice(0, 10), // Limit to top 10 outcomes
 	};
 }
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const body = await request.json().catch(() => ({}));
-		const searchTerm = body.searchTerm || "2028";
-		const limit = body.limit || 20;
+		const limit = body.limit || 10;
+		const clear = body.clear || false;
 
-		console.log(`[Sync] Fetching markets matching "${searchTerm}"...`);
+		console.log(`[Sync] Fetching top ${limit} political events...`);
 
-		// Fetch political markets from Polymarket
-		const allMarkets = await gammaClient.getMarkets({
-			category: "politics",
-			active: true,
-			closed: false,
-			limit: 100,
-			order: "volumeNum",
-			ascending: false,
-		});
+		// Clear existing markets if requested
+		if (clear) {
+			console.log("[Sync] Clearing existing markets...");
+			const existingMarkets = await convex.query(api.markets.listActive, {});
+			for (const market of existingMarkets) {
+				// We'd need a delete mutation - for now just skip
+			}
+		}
 
-		// Filter for markets matching search term
-		const filteredMarkets = allMarkets.filter(
-			(market) =>
-				market.question?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				market.slug?.toLowerCase().includes(searchTerm.toLowerCase()),
-		);
+		// Fetch top political events from Polymarket
+		const events = (await (gammaClient as any).getTopPoliticalEvents(limit)) as GammaEvent[];
 
-		console.log(`[Sync] Found ${filteredMarkets.length} markets matching "${searchTerm}"`);
+		console.log(`[Sync] Found ${events.length} political events`);
 
-		// Take top N by volume
-		const marketsToSync = filteredMarkets.slice(0, limit);
-
-		// Sync each market to Convex
+		// Sync each event as a market to Convex
 		const results = await Promise.all(
-			marketsToSync.map(async (market) => {
+			events.map(async (event) => {
 				try {
-					const convexMarket = convertToConvexMarket(market);
+					const convexMarket = convertEventToConvexMarket(event);
 					const id = await convex.mutation(api.markets.upsert, convexMarket);
-					return { slug: market.slug, success: true, id };
+					return {
+						slug: event.slug,
+						title: event.title,
+						volume: `$${(event.volume / 1000000).toFixed(1)}M`,
+						success: true,
+						id,
+					};
 				} catch (error) {
 					const message = error instanceof Error ? error.message : "Unknown error";
-					return { slug: market.slug, success: false, error: message };
+					return { slug: event.slug, title: event.title, success: false, error: message };
 				}
 			}),
 		);
@@ -90,7 +94,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			success: true,
 			synced: successful,
 			failed,
-			markets: results,
+			events: results,
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown error";
@@ -107,11 +111,22 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 export const GET: RequestHandler = async () => {
-	return json({
-		message: "POST to sync markets from Polymarket",
-		example: {
-			searchTerm: "2028",
-			limit: 20,
-		},
-	});
+	// Preview what would be synced
+	try {
+		const events = (await (gammaClient as any).getTopPoliticalEvents(10)) as GammaEvent[];
+
+		return json({
+			message: "Top political events that would be synced",
+			events: events.map((e) => ({
+				slug: e.slug,
+				title: e.title,
+				volume: `$${(e.volume / 1000000).toFixed(1)}M`,
+				markets: e.markets.length,
+			})),
+			usage: "POST to this endpoint to sync these events to Convex",
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Unknown error";
+		return json({ error: message }, { status: 500 });
+	}
 };
