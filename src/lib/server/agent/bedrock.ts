@@ -67,7 +67,7 @@ export class BedrockClient {
 			region: config.region,
 			// AWS credentials are automatically loaded from environment or IAM role
 		});
-		this.modelId = config.modelId || "anthropic.claude-3-5-sonnet-20241022-v2:0";
+		this.modelId = config.modelId || "anthropic.claude-3-5-haiku-20241022-v1:0";
 	}
 
 	/**
