@@ -23,6 +23,7 @@
 		"vite": "^7.2.6"
 	},
 	"dependencies": {
+		"@aws-sdk/client-bedrock-runtime": "^3.964.0",
 		"convex": "^1.31.2",
 		"convex-svelte": "^0.0.12"
 	}
