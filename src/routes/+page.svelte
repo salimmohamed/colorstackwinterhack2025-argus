@@ -10,10 +10,10 @@
 
 	function getSeverityColor(severity: "low" | "medium" | "high" | "critical") {
 		const colors = {
-			low: "#4caf50",
-			medium: "#ff9800",
-			high: "#f44336",
-			critical: "#9c27b0",
+			low: "#22c55e",
+			medium: "#f59e0b",
+			high: "#ef4444",
+			critical: "#a855f7",
 		};
 		return colors[severity];
 	}
@@ -22,11 +22,11 @@
 		const diff = Date.now() - timestamp;
 		const minutes = Math.floor(diff / 60000);
 		if (minutes < 1) return "Just now";
-		if (minutes < 60) return `${minutes} min ago`;
+		if (minutes < 60) return `${minutes}m ago`;
 		const hours = Math.floor(minutes / 60);
-		if (hours < 24) return `${hours} hours ago`;
+		if (hours < 24) return `${hours}h ago`;
 		const days = Math.floor(hours / 24);
-		return `${days} days ago`;
+		return `${days}d ago`;
 	}
 
 	async function triggerAgentRun() {
@@ -42,277 +42,741 @@
 			console.error("Failed to trigger agent:", error);
 		}
 	}
+
+	// ASCII Art of Argus Panoptes - the hundred-eyed giant
+	const argusAscii = `
+                      .  :  .
+                   .    ◉    .
+                .    .     .    .
+              .   ◉    . .    ◉   .
+            .        .---.        .
+          .    ◉    /  ◉  \\    ◉    .
+         .        ./       \\.        .
+        .   ◉    /    ◉ ◉    \\    ◉   .
+       .        |   .-----.   |        .
+      .    ◉    |  /  ◉ ◉  \\  |    ◉    .
+      .        |  |  .---.  |  |        .
+     .   ◉     |  | ( ◉_◉ ) |  |     ◉   .
+     .         |  |  '---'  |  |         .
+    .    ◉     |  \\   ◉ ◉   /  |     ◉    .
+    .         |    '.___.'    |         .
+    .   ◉      |   ◉  |  ◉   |      ◉   .
+   .          |      |      |          .
+   .    ◉      \\  ◉  |  ◉  /      ◉    .
+   .           \\    |    /           .
+   .   ◉        \\   |   /        ◉   .
+  .             \\◉ | ◉/             .
+  .    ◉         \\ | /         ◉    .
+  .              \\|/              .
+  .   ◉     ◉     |     ◉     ◉   .
+  .              /|\\              .
+  .    ◉        / | \\        ◉    .
+  .            /◉ | ◉\\            .
+   .   ◉      /   |   \\      ◉   .
+   .         /  ◉ | ◉  \\         .
+   .    ◉   /     |     \\   ◉    .
+   .       |   ◉  |  ◉   |       .
+    .   ◉  |      |      |  ◉   .
+    .      |  ◉   |   ◉  |      .
+    .    ◉  \\     |     /  ◉    .
+     .      \\  ◉ | ◉  /      .
+     .   ◉   \\   |   /   ◉   .
+      .       \\  |  /       .
+      .    ◉   \\ | /   ◉    .
+       .        \\|/        .
+        .   ◉    |    ◉   .
+         .      /|\\      .
+          .    / | \\    .
+           .  /  |  \\  .
+            ./   |   \\.
+             .   |   .
+              .  |  .
+               . | .
+                .|.                            `;
 </script>
 
-<div class="dashboard">
-	<h1>Dashboard</h1>
+<svelte:head>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+	<title>Argus — The All-Seeing Eye</title>
+</svelte:head>
 
-	<section class="stats-grid">
-		<div class="stat-card">
-			<h3>Markets Monitored</h3>
-			<p class="stat-value">
-				{#if marketsQuery.isLoading}
-					...
-				{:else}
-					{marketsQuery.data?.length ?? 0}
-				{/if}
-			</p>
-		</div>
-		<div class="stat-card">
-			<h3>Accounts Flagged</h3>
-			<p class="stat-value">
-				{#if alertsQuery.isLoading}
-					...
-				{:else}
-					{alertsQuery.data?.length ?? 0}
-				{/if}
-			</p>
-		</div>
-		<div class="stat-card">
-			<h3>Active Alerts</h3>
-			<p class="stat-value">
-				{#if alertsQuery.isLoading}
-					...
-				{:else}
-					{alertsQuery.data?.filter((a) => a.status === "new").length ?? 0}
-				{/if}
-			</p>
-		</div>
-		<div class="stat-card">
-			<h3>Last Agent Run</h3>
-			<p class="stat-value time">
-				{#if agentRunsQuery.isLoading}
-					...
-				{:else if agentRunsQuery.data?.[0]}
-					{formatTime(agentRunsQuery.data[0].startedAt)}
-				{:else}
-					Never
-				{/if}
-			</p>
-		</div>
-	</section>
+<div class="page">
+	<!-- Scanline overlay -->
+	<div class="scanlines"></div>
 
-	<section class="alerts-section">
-		<div class="section-header">
-			<h2>Recent Alerts</h2>
-			<a href="/alerts" class="view-all">View All →</a>
-		</div>
+	<!-- Floating eyes background -->
+	<div class="eyes-bg" aria-hidden="true">
+		{#each Array(40) as _, i}
+			<span
+				class="floating-eye"
+				style="
+					left: {Math.random() * 100}%;
+					top: {Math.random() * 100}%;
+					animation-delay: {Math.random() * 8}s;
+					opacity: {0.02 + Math.random() * 0.06};
+					font-size: {1 + Math.random() * 2}rem;
+				"
+			>◉</span>
+		{/each}
+	</div>
 
-		<div class="alerts-list">
-			{#if alertsQuery.isLoading}
-				<div class="loading">Loading alerts...</div>
-			{:else if alertsQuery.data?.length === 0}
-				<div class="empty-state">No alerts yet. The agent will flag suspicious activity.</div>
-			{:else}
-				{#each alertsQuery.data ?? [] as alert}
-					<a href="/alerts/{alert._id}" class="alert-card">
-						<span
-							class="severity-badge"
-							style="background-color: {getSeverityColor(alert.severity)}"
-						>
-							{alert.severity}
-						</span>
-						<div class="alert-content">
-							<h4>{alert.title}</h4>
-							<p class="alert-meta">
-								Account: {alert.accountAddress.slice(0, 6)}...{alert.accountAddress.slice(-4)} • {formatTime(alert.createdAt)}
-							</p>
+	<div class="container">
+		<!-- Header -->
+		<header class="header">
+			<div class="logo-group">
+				<span class="logo-eye">◉</span>
+				<h1 class="logo">ARGUS</h1>
+			</div>
+			<nav class="nav">
+				<a href="/markets" class="nav-link">Markets</a>
+				<a href="/alerts" class="nav-link">Alerts</a>
+				<a href="/accounts" class="nav-link">Accounts</a>
+			</nav>
+		</header>
+
+		<main class="main">
+			<!-- Left: Content -->
+			<div class="content">
+				<div class="hero">
+					<p class="tagline">THE ALL-SEEING EYE</p>
+					<h2 class="headline">Polymarket Insider<br/>Trading Detection</h2>
+					<p class="description">
+						Autonomous AI surveillance monitoring political prediction markets.
+						Some eyes sleep while others watch — Argus never rests.
+					</p>
+				</div>
+
+				<!-- Terminal -->
+				<div class="terminal">
+					<div class="terminal-bar">
+						<span class="dot dot-red"></span>
+						<span class="dot dot-yellow"></span>
+						<span class="dot dot-green"></span>
+						<span class="terminal-title">argus_daemon.log</span>
+					</div>
+					<div class="terminal-body">
+						<p><span class="prompt">$</span> argus --status</p>
+						<p class="output">[{new Date().toISOString().split('T')[0]}] System initialized</p>
+						<p class="output">Monitoring <span class="hl">{$marketsQuery?.length ?? 0}</span> markets</p>
+						<p class="output">Active alerts: <span class="hl alert">{$alertsQuery?.filter((a: any) => a.status === "new").length ?? 0}</span></p>
+						<p class="output">Status: <span class="hl success">WATCHING</span></p>
+						<p class="cursor">█</p>
+					</div>
+				</div>
+
+				<!-- Stats -->
+				<div class="stats">
+					<div class="stat">
+						<span class="stat-icon">◎</span>
+						<div class="stat-data">
+							<span class="stat-value">
+								{#if $marketsQuery}
+									{$marketsQuery.length}
+								{:else}
+									—
+								{/if}
+							</span>
+							<span class="stat-label">Markets</span>
 						</div>
-					</a>
-				{/each}
-			{/if}
-		</div>
-	</section>
+					</div>
+					<div class="stat stat-alert">
+						<span class="stat-icon">⚠</span>
+						<div class="stat-data">
+							<span class="stat-value">
+								{#if $alertsQuery}
+									{$alertsQuery.length}
+								{:else}
+									—
+								{/if}
+							</span>
+							<span class="stat-label">Alerts</span>
+						</div>
+					</div>
+					<div class="stat">
+						<span class="stat-icon">◉</span>
+						<div class="stat-data">
+							<span class="stat-value">100</span>
+							<span class="stat-label">Eyes</span>
+						</div>
+					</div>
+					<div class="stat">
+						<span class="stat-icon">⟁</span>
+						<div class="stat-data">
+							<span class="stat-value">24/7</span>
+							<span class="stat-label">Watch</span>
+						</div>
+					</div>
+				</div>
 
-	<section class="agent-section">
-		<h2>Agent Status</h2>
-		<div class="agent-status">
-			{#if agentRunsQuery.data?.[0]?.status === "running"}
-				<div class="status-indicator running"></div>
-				<span>Agent is analyzing markets</span>
-			{:else}
-				<div class="status-indicator idle"></div>
-				<span>Agent is idle</span>
-			{/if}
-			<button class="trigger-btn" onclick={triggerAgentRun}>Trigger Manual Run</button>
-		</div>
-	</section>
+				<!-- Recent Alerts -->
+				{#if $alertsQuery && $alertsQuery.length > 0}
+					<div class="alerts-section">
+						<div class="section-head">
+							<h3>Recent Detections</h3>
+							<a href="/alerts" class="link">View all →</a>
+						</div>
+						<div class="alerts-list">
+							{#each $alertsQuery.slice(0, 3) as alert}
+								<a href="/alerts/{alert._id}" class="alert-item">
+									<span class="alert-severity" style="background: {getSeverityColor(alert.severity)}">{alert.severity}</span>
+									<span class="alert-title">{alert.title}</span>
+									<span class="alert-time">{formatTime(alert.createdAt)}</span>
+								</a>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Agent Control -->
+				<div class="agent-control">
+					<div class="agent-status">
+						{#if $agentRunsQuery?.[0]?.status === "running"}
+							<span class="status-dot running"></span>
+							<span>Agent analyzing</span>
+						{:else}
+							<span class="status-dot idle"></span>
+							<span>Agent idle</span>
+						{/if}
+					</div>
+					<button class="btn" onclick={triggerAgentRun}>
+						<span>▶</span> Trigger Scan
+					</button>
+				</div>
+
+				<!-- Quote -->
+				<footer class="quote">
+					<p>"He had a hundred eyes, of which only two would sleep at a time while the rest kept watch."</p>
+					<cite>— Ovid, Metamorphoses</cite>
+				</footer>
+			</div>
+
+			<!-- Right: ASCII Art -->
+			<aside class="ascii-side" aria-hidden="true">
+				<pre class="ascii-art">{argusAscii}</pre>
+			</aside>
+		</main>
+	</div>
 </div>
 
 <style>
-	.dashboard {
+	:root {
+		--bg-dark: #030303;
+		--bg-card: #0a0a0a;
+		--bg-hover: #111111;
+		--border: #1a1a1a;
+		--border-light: #252525;
+		--text: #fafafa;
+		--text-dim: #888888;
+		--text-muted: #444444;
+		--accent: #f59e0b;
+		--accent-glow: rgba(245, 158, 11, 0.2);
+		--alert: #ef4444;
+		--success: #22c55e;
+	}
+
+	:global(*) {
+		box-sizing: border-box;
+	}
+
+	:global(body) {
+		margin: 0;
+		padding: 0;
+		background: var(--bg-dark);
+		color: var(--text);
+		font-family: 'JetBrains Mono', 'SF Mono', monospace;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	.page {
+		min-height: 100vh;
+		position: relative;
+		overflow: hidden;
+	}
+
+	/* Scanlines */
+	.scanlines {
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		z-index: 100;
+		background: repeating-linear-gradient(
+			0deg,
+			rgba(0, 0, 0, 0.15) 0px,
+			rgba(0, 0, 0, 0.15) 1px,
+			transparent 1px,
+			transparent 2px
+		);
+		opacity: 0.4;
+	}
+
+	/* Floating Eyes */
+	.eyes-bg {
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.floating-eye {
+		position: absolute;
+		color: var(--accent);
+		animation: drift 20s ease-in-out infinite;
+	}
+
+	@keyframes drift {
+		0%, 100% { transform: translate(0, 0) scale(1); }
+		25% { transform: translate(10px, -15px) scale(1.1); }
+		50% { transform: translate(-5px, 10px) scale(0.95); }
+		75% { transform: translate(15px, 5px) scale(1.05); }
+	}
+
+	.container {
+		max-width: 1400px;
+		margin: 0 auto;
+		padding: 2rem 3rem;
+		position: relative;
+		z-index: 1;
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+	}
+
+	/* Header */
+	.header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding-bottom: 2rem;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.logo-group {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.logo-eye {
+		font-size: 1.75rem;
+		color: var(--accent);
+		animation: glow-pulse 3s ease-in-out infinite;
+	}
+
+	@keyframes glow-pulse {
+		0%, 100% {
+			text-shadow: 0 0 10px var(--accent-glow), 0 0 30px var(--accent-glow);
+			opacity: 1;
+		}
+		50% {
+			text-shadow: 0 0 20px var(--accent), 0 0 50px var(--accent-glow);
+			opacity: 0.85;
+		}
+	}
+
+	.logo {
+		font-family: 'Instrument Serif', Georgia, serif;
+		font-size: 2rem;
+		font-weight: 400;
+		letter-spacing: 0.25em;
+		margin: 0;
+		background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+	}
+
+	.nav {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.nav-link {
+		padding: 0.5rem 1rem;
+		color: var(--text-dim);
+		text-decoration: none;
+		font-size: 0.8rem;
+		letter-spacing: 0.05em;
+		border: 1px solid transparent;
+		border-radius: 4px;
+		transition: all 0.2s;
+	}
+
+	.nav-link:hover {
+		color: var(--accent);
+		border-color: var(--border-light);
+		background: var(--bg-card);
+	}
+
+	/* Main */
+	.main {
+		flex: 1;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 4rem;
+		padding: 3rem 0;
+		align-items: center;
+	}
+
+	.content {
 		display: flex;
 		flex-direction: column;
 		gap: 2rem;
 	}
 
-	h1 {
-		font-size: 2rem;
-		color: #1a1a2e;
+	/* Hero */
+	.tagline {
+		font-size: 0.7rem;
+		letter-spacing: 0.35em;
+		color: var(--accent);
 		margin: 0;
+		font-weight: 600;
 	}
 
-	.stats-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 1rem;
+	.headline {
+		font-family: 'Instrument Serif', Georgia, serif;
+		font-size: 3rem;
+		font-weight: 400;
+		line-height: 1.15;
+		margin: 0.75rem 0;
+		letter-spacing: -0.01em;
 	}
 
-	.stat-card {
-		background: white;
-		border-radius: 8px;
-		padding: 1.5rem;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-	}
-
-	.stat-card h3 {
-		margin: 0;
+	.description {
 		font-size: 0.875rem;
-		color: #666;
-		font-weight: normal;
+		color: var(--text-dim);
+		line-height: 1.7;
+		margin: 0;
+		max-width: 440px;
+	}
+
+	/* Terminal */
+	.terminal {
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	.terminal-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 0.75rem 1rem;
+		background: rgba(255,255,255,0.02);
+		border-bottom: 1px solid var(--border);
+	}
+
+	.dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+	}
+	.dot-red { background: #ff5f57; }
+	.dot-yellow { background: #febc2e; }
+	.dot-green { background: #28c840; }
+
+	.terminal-title {
+		margin-left: 8px;
+		font-size: 0.7rem;
+		color: var(--text-muted);
+	}
+
+	.terminal-body {
+		padding: 1rem;
+		font-size: 0.8rem;
+		line-height: 1.8;
+	}
+
+	.terminal-body p { margin: 0; }
+	.prompt { color: var(--success); }
+	.output { color: var(--text-dim); }
+	.hl { color: var(--accent); font-weight: 600; }
+	.hl.alert { color: var(--alert); }
+	.hl.success { color: var(--success); }
+
+	.cursor {
+		animation: blink 1s step-end infinite;
+		color: var(--accent);
+	}
+
+	@keyframes blink {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0; }
+	}
+
+	/* Stats */
+	.stats {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.75rem;
+	}
+
+	.stat {
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 1rem;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		transition: all 0.2s;
+	}
+
+	.stat:hover {
+		border-color: var(--border-light);
+		box-shadow: 0 0 20px rgba(245, 158, 11, 0.05);
+	}
+
+	.stat-alert:hover {
+		border-color: rgba(239, 68, 68, 0.3);
+	}
+
+	.stat-icon {
+		font-size: 1.25rem;
+		color: var(--accent);
+	}
+
+	.stat-alert .stat-icon { color: var(--alert); }
+
+	.stat-data {
+		display: flex;
+		flex-direction: column;
 	}
 
 	.stat-value {
-		margin: 0.5rem 0 0;
-		font-size: 2rem;
-		font-weight: bold;
-		color: #1a1a2e;
-	}
-
-	.stat-value.time {
 		font-size: 1.25rem;
+		font-weight: 700;
 	}
 
-	.section-header {
+	.stat-label {
+		font-size: 0.65rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
+
+	/* Alerts Section */
+	.alerts-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.section-head {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 	}
 
-	.section-header h2 {
+	.section-head h3 {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-dim);
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
 		margin: 0;
-		font-size: 1.25rem;
-		color: #1a1a2e;
 	}
 
-	.view-all {
-		color: #666;
+	.link {
+		font-size: 0.7rem;
+		color: var(--text-muted);
 		text-decoration: none;
-		font-size: 0.875rem;
+		transition: color 0.2s;
 	}
 
-	.view-all:hover {
-		color: #1a1a2e;
-	}
+	.link:hover { color: var(--accent); }
 
 	.alerts-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-		margin-top: 1rem;
+		gap: 0.5rem;
 	}
 
-	.alert-card {
+	.alert-item {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		background: white;
-		border-radius: 8px;
-		padding: 1rem;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+		gap: 0.75rem;
+		padding: 0.75rem 1rem;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 6px;
 		text-decoration: none;
-		transition: box-shadow 0.2s;
+		color: var(--text);
+		transition: all 0.2s;
 	}
 
-	.alert-card:hover {
-		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+	.alert-item:hover {
+		border-color: var(--border-light);
+		background: var(--bg-hover);
 	}
 
-	.severity-badge {
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		color: white;
-		font-size: 0.75rem;
-		font-weight: bold;
+	.alert-severity {
+		padding: 0.2rem 0.5rem;
+		border-radius: 3px;
+		font-size: 0.6rem;
+		font-weight: 700;
 		text-transform: uppercase;
+		color: white;
 	}
 
-	.alert-content {
+	.alert-title {
 		flex: 1;
+		font-size: 0.8rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
-	.alert-content h4 {
-		margin: 0;
-		color: #1a1a2e;
-		font-size: 1rem;
+	.alert-time {
+		font-size: 0.7rem;
+		color: var(--text-muted);
 	}
 
-	.alert-meta {
-		margin: 0.25rem 0 0;
-		color: #666;
-		font-size: 0.875rem;
+	/* Agent Control */
+	.agent-control {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 1rem;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 6px;
 	}
 
 	.agent-status {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		background: white;
-		border-radius: 8px;
-		padding: 1rem;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-		margin-top: 1rem;
+		gap: 0.75rem;
+		font-size: 0.8rem;
+		color: var(--text-dim);
 	}
 
-	.status-indicator {
-		width: 12px;
-		height: 12px;
+	.status-dot {
+		width: 8px;
+		height: 8px;
 		border-radius: 50%;
 	}
 
-	.status-indicator.running {
-		background: #4caf50;
-		animation: pulse 2s infinite;
+	.status-dot.running {
+		background: var(--success);
+		box-shadow: 0 0 10px var(--success);
+		animation: pulse-dot 2s infinite;
 	}
 
-	.status-indicator.idle {
-		background: #9e9e9e;
+	.status-dot.idle {
+		background: var(--text-muted);
 	}
 
-	@keyframes pulse {
-		0% {
-			box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
-		}
-		70% {
-			box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
-		}
-		100% {
-			box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
-		}
+	@keyframes pulse-dot {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
 	}
 
-	.trigger-btn {
-		margin-left: auto;
+	.btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 		padding: 0.5rem 1rem;
-		background: #1a1a2e;
-		color: white;
-		border: none;
+		background: transparent;
+		border: 1px solid var(--border-light);
 		border-radius: 4px;
+		color: var(--text-dim);
+		font-family: inherit;
+		font-size: 0.75rem;
 		cursor: pointer;
-		transition: background 0.2s;
+		transition: all 0.2s;
 	}
 
-	.trigger-btn:hover {
-		background: #2a2a4e;
+	.btn:hover {
+		border-color: var(--accent);
+		color: var(--accent);
+		box-shadow: 0 0 15px var(--accent-glow);
 	}
 
-	.loading,
-	.empty-state {
-		background: white;
-		border-radius: 8px;
-		padding: 2rem;
-		text-align: center;
-		color: #666;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	/* Quote */
+	.quote {
+		padding-top: 1.5rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.quote p {
+		font-family: 'Instrument Serif', Georgia, serif;
+		font-style: italic;
+		font-size: 0.9rem;
+		color: var(--text-dim);
+		line-height: 1.6;
+		margin: 0 0 0.5rem;
+	}
+
+	.quote cite {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		font-style: normal;
+	}
+
+	/* ASCII Art */
+	.ascii-side {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+	}
+
+	.ascii-art {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.55rem;
+		line-height: 1.15;
+		color: var(--text-muted);
+		white-space: pre;
+		margin: 0;
+		opacity: 0.5;
+		text-shadow: 0 0 30px var(--accent-glow);
+		animation: ascii-breathe 6s ease-in-out infinite;
+	}
+
+	@keyframes ascii-breathe {
+		0%, 100% { opacity: 0.4; }
+		50% { opacity: 0.6; }
+	}
+
+	/* Responsive */
+	@media (max-width: 1100px) {
+		.main {
+			grid-template-columns: 1fr;
+		}
+
+		.ascii-side {
+			display: none;
+		}
+
+		.stats {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (max-width: 640px) {
+		.container {
+			padding: 1.5rem;
+		}
+
+		.header {
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		.headline {
+			font-size: 2rem;
+		}
+
+		.stats {
+			grid-template-columns: 1fr 1fr;
+		}
+
+		.nav {
+			width: 100%;
+			justify-content: center;
+		}
 	}
 </style>
