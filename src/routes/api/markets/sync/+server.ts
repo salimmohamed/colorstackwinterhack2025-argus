@@ -98,7 +98,7 @@ function convertEventToConvexMarket(event: GammaEvent) {
 		endDate: event.endDate ? new Date(event.endDate).getTime() : undefined,
 		isActive: event.active,
 		totalVolume: event.volume,
-		outcomes: outcomes.slice(0, 10), // Limit to top 10 outcomes
+		outcomes: outcomes.slice(0, 5), // Limit to top 5 outcomes
 	};
 }
 
