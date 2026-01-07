@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { gammaClient, type GammaEvent } from "$lib/server/polymarket/gamma";
+import { gammaClient, type GammaEvent, type GammaMarket } from "$lib/server/polymarket/gamma";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import { PUBLIC_CONVEX_URL } from "$env/static/public";
@@ -8,13 +8,67 @@ import { PUBLIC_CONVEX_URL } from "$env/static/public";
 const convex = new ConvexHttpClient(PUBLIC_CONVEX_URL);
 
 /**
+ * Extract candidate name from market question or slug
+ * Examples:
+ * - "Will JD Vance win the 2028 Presidential Election?" -> "JD Vance"
+ * - "jd-vance-wins-2028-presidential" -> "JD Vance"
+ */
+function extractCandidateName(market: GammaMarket): string {
+	// Try to extract from question first
+	if (market.question) {
+		// Pattern: "Will [NAME] win/become/be..."
+		const willMatch = market.question.match(/^Will\s+(.+?)\s+(win|become|be)\b/i);
+		if (willMatch) {
+			return willMatch[1].trim();
+		}
+		// Pattern: "[NAME] to win/become..."
+		const toMatch = market.question.match(/^(.+?)\s+to\s+(win|become|be)\b/i);
+		if (toMatch) {
+			return toMatch[1].trim();
+		}
+	}
+
+	// Try to extract from slug
+	if (market.slug) {
+		// Remove common suffixes and convert to title case
+		const cleaned = market.slug
+			.replace(/-wins?-.*$/i, "")
+			.replace(/-2028.*$/i, "")
+			.replace(/-presidential.*$/i, "")
+			.replace(/-nominee.*$/i, "")
+			.replace(/-/g, " ");
+
+		// Title case
+		return cleaned
+			.split(" ")
+			.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+			.join(" ");
+	}
+
+	return "Unknown";
+}
+
+/**
+ * Check if a market is a placeholder (e.g., "Person AA", "Person CL", "another person")
+ */
+function isPlaceholderMarket(market: GammaMarket): boolean {
+	if (!market.question) return false;
+	const q = market.question.toLowerCase();
+	// Pattern: "Person" followed by 1-2 uppercase letters, or "another person"
+	return /\bperson\s+[a-z]{1,2}\b/i.test(market.question) || q.includes("another person");
+}
+
+/**
  * Convert Gamma event to our Convex market format
  * Events are the main "markets" shown on Polymarket (e.g., "2028 Presidential Election")
  */
 function convertEventToConvexMarket(event: GammaEvent) {
+	// Filter out placeholder markets first
+	const realMarkets = event.markets.filter((m) => !isPlaceholderMarket(m));
+
 	// For events with multiple outcomes, combine them
-	const outcomes = event.markets.map((market) => {
-		// Parse the outcome prices
+	const outcomes = realMarkets.map((market) => {
+		// Parse the outcome prices - first price is typically "Yes" probability
 		let price = 0.5;
 		try {
 			const prices = JSON.parse(market.outcomePrices || "[]") as string[];
@@ -23,15 +77,18 @@ function convertEventToConvexMarket(event: GammaEvent) {
 			// Use default
 		}
 
-		// Get the outcome name (usually the question minus the event title)
-		const name = market.question?.replace(event.title, "").trim() || market.slug || "Unknown";
+		// Extract the candidate/outcome name properly
+		const name = extractCandidateName(market);
 
 		return {
-			name: name.replace(/^Will\s+/i, "").replace(/\?$/, ""),
+			name,
 			tokenId: market.conditionId,
 			price,
 		};
 	});
+
+	// Sort outcomes by price (probability) descending
+	outcomes.sort((a, b) => b.price - a.price);
 
 	return {
 		polymarketId: event.id,
@@ -49,17 +106,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const body = await request.json().catch(() => ({}));
 		const limit = body.limit || 10;
-		const clear = body.clear || false;
+		const clear = body.clear !== false; // Default to true - always clear old data
 
 		console.log(`[Sync] Fetching top ${limit} political events...`);
 
-		// Clear existing markets if requested
+		// Clear existing markets first (enabled by default)
 		if (clear) {
 			console.log("[Sync] Clearing existing markets...");
-			const existingMarkets = await convex.query(api.markets.listActive, {});
-			for (const market of existingMarkets) {
-				// We'd need a delete mutation - for now just skip
-			}
+			const result = await convex.mutation(api.markets.deleteAll, {});
+			console.log(`[Sync] Deleted ${result.deleted} old markets`);
 		}
 
 		// Fetch top political events from Polymarket
