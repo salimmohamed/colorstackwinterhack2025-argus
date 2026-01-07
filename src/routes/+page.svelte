@@ -5,85 +5,26 @@
 
 	const marketsQuery = useQuery(api.markets.listActive, () => ({}));
 
-	// Halftone eye generation
-	let eyeCanvas: string[][] = [];
-	const WIDTH = 80;
-	const HEIGHT = 50;
+	// Optimized: 130x100 grid, rendered as plain text (no per-char spans)
+	const WIDTH = 130;
+	const HEIGHT = 100;
 
-	// Characters by density (light to dark)
-	const CHARS = [' ', '·', '∙', '○', '◐', '●', '◉'];
+	const CHARS = [' ', ' ', '·', '∙', '○', '◐', '●', '◉'];
 
-	function generateHalftoneEye() {
-		const centerX = WIDTH * 0.5;
-		const centerY = HEIGHT * 0.5;
-		const outerRadius = Math.min(WIDTH, HEIGHT) * 0.45;
-		const irisRadius = outerRadius * 0.45;
-		const pupilRadius = irisRadius * 0.4;
-
-		const grid: { char: string; isIris: boolean; isPupil: boolean }[][] = [];
-
+	function generateEyeText(): string {
+		// Return grid of spaces to maintain container size for iris-glow
+		let result = '';
 		for (let y = 0; y < HEIGHT; y++) {
-			const row: { char: string; isIris: boolean; isPupil: boolean }[] = [];
-			for (let x = 0; x < WIDTH; x++) {
-				const dx = x - centerX;
-				const dy = (y - centerY) * 1.8; // Stretch vertically for eye shape
-				const dist = Math.sqrt(dx * dx + dy * dy);
-
-				// Eye shape (almond)
-				const eyeWidth = outerRadius;
-				const eyeHeight = outerRadius * 0.55;
-				const eyeShape = (dx * dx) / (eyeWidth * eyeWidth) + (dy * dy) / (eyeHeight * eyeHeight);
-
-				// Distance from center for iris/pupil
-				const irisCheck = Math.sqrt((x - centerX) ** 2 + ((y - centerY) * 1.2) ** 2);
-
-				let char = ' ';
-				let isIris = false;
-				let isPupil = false;
-
-				if (eyeShape <= 1) {
-					// Inside eye shape
-					if (irisCheck <= pupilRadius) {
-						// Pupil - darkest
-						isPupil = true;
-						char = CHARS[6];
-					} else if (irisCheck <= irisRadius) {
-						// Iris - gradient
-						isIris = true;
-						const irisGradient = (irisCheck - pupilRadius) / (irisRadius - pupilRadius);
-						const noise = Math.sin(x * 0.8) * Math.cos(y * 0.6) * 0.3;
-						const density = Math.max(0, Math.min(1, 0.7 - irisGradient * 0.4 + noise));
-						const charIndex = Math.floor(density * (CHARS.length - 1));
-						char = CHARS[Math.min(charIndex + 2, CHARS.length - 1)];
-					} else {
-						// Sclera (white of eye) - light with subtle texture
-						const scleraGradient = (irisCheck - irisRadius) / (outerRadius - irisRadius);
-						const edgeDarkening = Math.pow(eyeShape, 2) * 3;
-						const noise = Math.sin(x * 2) * Math.cos(y * 1.5) * 0.15;
-						const density = Math.max(0, Math.min(0.4, edgeDarkening + noise));
-						const charIndex = Math.floor(density * (CHARS.length - 1));
-						char = CHARS[charIndex];
-					}
-				} else if (eyeShape <= 1.15) {
-					// Eye outline/lashes
-					const outlineIntensity = 1 - (eyeShape - 1) / 0.15;
-					const charIndex = Math.floor(outlineIntensity * 3);
-					char = CHARS[Math.min(charIndex + 1, 3)];
-				}
-
-				row.push({ char, isIris, isPupil });
-			}
-			grid.push(row);
+			result += ' '.repeat(WIDTH) + '\n';
 		}
-
-		return grid;
+		return result;
 	}
 
-	let eyeGrid: { char: string; isIris: boolean; isPupil: boolean }[][] = [];
+	let eyeText = '';
 	let mounted = false;
 
 	onMount(() => {
-		eyeGrid = generateHalftoneEye();
+		eyeText = generateEyeText();
 		mounted = true;
 	});
 </script>
@@ -96,82 +37,87 @@
 </svelte:head>
 
 <div class="page">
-	<!-- Noise texture overlay -->
+	<!-- Background Eye System -->
+	<div class="eye-system" aria-hidden="true">
+		<!-- Base eye layer (grayscale) -->
+		<div class="eye-container">
+			{#if mounted}
+				<pre class="eye-text">{eyeText}</pre>
+			{/if}
+			<!-- Iris color overlay - positioned via CSS -->
+			<div class="iris-glow"></div>
+		</div>
+
+		<!-- Eyelids for blink animation -->
+		<div class="eyelid eyelid-top"></div>
+		<div class="eyelid eyelid-bottom"></div>
+	</div>
+
+	<!-- Depth overlays -->
+	<div class="overlay-fade"></div>
 	<div class="noise"></div>
 
-	<div class="layout">
-		<!-- Left: Content -->
-		<div class="content">
-			<header>
-				<nav>
-					<a href="/markets" class="nav-link">Markets</a>
-				</nav>
-			</header>
+	<!-- Content -->
+	<div class="content">
+		<header>
+			<nav>
+				<a href="/markets" class="nav-link">Markets</a>
+			</nav>
+		</header>
 
-			<main>
-				<div class="hero">
-					<p class="eyebrow">POLYMARKET SURVEILLANCE</p>
-					<h1 class="wordmark">ARGUS</h1>
-					<p class="tagline">The All-Seeing Eye</p>
+		<main>
+			<div class="hero">
+				<p class="eyebrow">POLYMARKET SURVEILLANCE</p>
+				<h1 class="wordmark">ARGUS</h1>
+				<p class="tagline">The All-Seeing Eye</p>
+				<p class="description">
+					Autonomous detection of insider trading patterns
+					across political prediction markets. Some eyes sleep
+					while others watch.
+				</p>
+			</div>
 
-					<p class="description">
-						Autonomous detection of insider trading patterns
-						across political prediction markets. Some eyes sleep
-						while others watch.
-					</p>
+			<div class="stats">
+				<div class="stat">
+					<span class="stat-value">
+						{#if marketsQuery.isLoading}
+							<span class="loading">—</span>
+						{:else}
+							{marketsQuery.data?.length ?? 0}
+						{/if}
+					</span>
+					<span class="stat-label">Markets Monitored</span>
 				</div>
-
-				<div class="stats">
-					<div class="stat">
-						<span class="stat-value">
-							{#if marketsQuery.isLoading}
-								<span class="loading">—</span>
-							{:else}
-								{marketsQuery.data?.length ?? 0}
-							{/if}
-						</span>
-						<span class="stat-label">Markets Monitored</span>
-					</div>
-					<div class="stat">
-						<span class="stat-value status-active">
-							<span class="pulse"></span>
-							ACTIVE
-						</span>
-						<span class="stat-label">Detection Status</span>
-					</div>
+				<div class="stat">
+					<span class="stat-value status-active">
+						<span class="pulse"></span>
+						ACTIVE
+					</span>
+					<span class="stat-label">Detection Status</span>
 				</div>
+			</div>
 
-				<a href="/markets" class="cta">
-					View Monitored Markets
-					<span class="arrow">→</span>
-				</a>
-			</main>
+			<a href="/markets" class="cta">
+				View Monitored Markets
+				<span class="arrow">→</span>
+			</a>
+		</main>
 
-			<footer>
-				<p class="quote">"He had a hundred eyes, of which only two would sleep at a time."</p>
-				<p class="attribution">— Ovid</p>
-			</footer>
-		</div>
-
-		<!-- Right: Halftone Eye -->
-		<div class="eye-container" aria-hidden="true">
-			{#if mounted}
-				<pre class="halftone-eye">{#each eyeGrid as row}<span class="eye-row">{#each row as cell}<span class={cell.isPupil ? 'pupil' : cell.isIris ? 'iris' : 'sclera'}>{cell.char}</span>{/each}</span>
-{/each}</pre>
-			{/if}
-		</div>
+		<footer>
+			<p class="quote">"He had a hundred eyes, of which only two would sleep at a time."</p>
+			<p class="attribution">— Ovid</p>
+		</footer>
 	</div>
 </div>
 
 <style>
 	:root {
 		--bg: #030303;
-		--bg-elevated: #0a0a0a;
 		--text: #e8e8e8;
-		--text-dim: #666666;
-		--text-muted: #333333;
+		--text-dim: #666;
+		--text-muted: #333;
 		--accent: #f59e0b;
-		--accent-dim: #92610d;
+		--accent-glow: rgba(245, 158, 11, 0.4);
 	}
 
 	:global(*) {
@@ -191,39 +137,161 @@
 	.page {
 		min-height: 100vh;
 		position: relative;
+		overflow: hidden;
 	}
 
-	/* Noise texture */
+	/* ===== EYE SYSTEM ===== */
+	.eye-system {
+		position: fixed;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1;
+		pointer-events: none;
+	}
+
+	.eye-container {
+		position: relative;
+		opacity: 0.15;
+		animation: eye-look 12s ease-in-out infinite;
+	}
+
+	@keyframes eye-look {
+		0%, 100% {
+			transform: translate(0, 0) scale(1);
+		}
+		20% {
+			transform: translate(15px, -8px) scale(1.01);
+		}
+		40% {
+			transform: translate(-10px, 5px) scale(0.99);
+		}
+		60% {
+			transform: translate(8px, 10px) scale(1);
+		}
+		80% {
+			transform: translate(-12px, -5px) scale(1.01);
+		}
+	}
+
+	.eye-text {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: clamp(0.32rem, 0.85vw, 0.6rem);
+		line-height: 1.0;
+		letter-spacing: 0.02em;
+		color: #444;
+		white-space: pre;
+		user-select: none;
+	}
+
+	/* Iris glow - radial gradient overlay */
+	.iris-glow {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 25%;
+		height: 50%;
+		transform: translate(-50%, -50%);
+		background: radial-gradient(
+			ellipse 100% 100% at 50% 50%,
+			var(--accent-glow) 0%,
+			var(--accent-glow) 30%,
+			transparent 70%
+		);
+		filter: blur(8px);
+		mix-blend-mode: screen;
+		animation: iris-pulse 4s ease-in-out infinite;
+	}
+
+	@keyframes iris-pulse {
+		0%, 100% {
+			opacity: 0.6;
+			transform: translate(-50%, -50%) scale(1);
+		}
+		50% {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1.1);
+		}
+	}
+
+	/* Eyelids for blinking */
+	.eyelid {
+		position: absolute;
+		left: 0;
+		right: 0;
+		height: 50%;
+		background: var(--bg);
+		z-index: 2;
+	}
+
+	.eyelid-top {
+		top: 0;
+		transform-origin: top center;
+		animation: blink-top 6s ease-in-out infinite;
+	}
+
+	.eyelid-bottom {
+		bottom: 0;
+		transform-origin: bottom center;
+		animation: blink-bottom 6s ease-in-out infinite;
+	}
+
+	@keyframes blink-top {
+		0%, 42%, 48%, 100% {
+			transform: scaleY(0);
+		}
+		45% {
+			transform: scaleY(1);
+		}
+	}
+
+	@keyframes blink-bottom {
+		0%, 42%, 48%, 100% {
+			transform: scaleY(0);
+		}
+		45% {
+			transform: scaleY(1);
+		}
+	}
+
+	/* ===== OVERLAYS ===== */
+	.overlay-fade {
+		position: fixed;
+		inset: 0;
+		z-index: 3;
+		pointer-events: none;
+		background: radial-gradient(
+			ellipse 70% 60% at 50% 50%,
+			transparent 0%,
+			transparent 30%,
+			rgba(3, 3, 3, 0.7) 60%,
+			var(--bg) 100%
+		);
+	}
+
 	.noise {
 		position: fixed;
 		inset: 0;
+		z-index: 4;
 		pointer-events: none;
-		z-index: 1000;
-		opacity: 0.03;
-		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
+		opacity: 0.04;
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 	}
 
-	.layout {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		min-height: 100vh;
-	}
-
-	/* Left content */
+	/* ===== CONTENT ===== */
 	.content {
+		position: relative;
+		z-index: 10;
+		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
 		padding: 3rem 4rem;
-		position: relative;
-		z-index: 10;
+		max-width: 560px;
 	}
 
 	header {
-		margin-bottom: auto;
-	}
-
-	nav {
-		display: flex;
+		margin-bottom: 2rem;
 	}
 
 	.nav-link {
@@ -234,7 +302,7 @@
 		text-transform: uppercase;
 		padding: 0.5rem 0;
 		border-bottom: 1px solid transparent;
-		transition: all 0.3s ease;
+		transition: all 0.3s;
 	}
 
 	.nav-link:hover {
@@ -243,81 +311,71 @@
 	}
 
 	main {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
-		gap: 3rem;
-		padding: 4rem 0;
+		justify-content: center;
+		gap: 2.5rem;
 	}
 
 	.hero {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.eyebrow {
-		font-size: 0.65rem;
-		letter-spacing: 0.3em;
+		font-size: 0.6rem;
+		letter-spacing: 0.35em;
 		color: var(--text-muted);
-		font-weight: 500;
 	}
 
 	.wordmark {
 		font-family: 'Instrument Serif', Georgia, serif;
-		font-size: clamp(4rem, 12vw, 8rem);
+		font-size: clamp(3.5rem, 14vw, 6.5rem);
 		font-weight: 400;
-		letter-spacing: 0.05em;
-		line-height: 0.9;
-		background: linear-gradient(
-			180deg,
-			var(--text) 0%,
-			var(--text-dim) 100%
-		);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
+		letter-spacing: 0.02em;
+		line-height: 0.85;
 	}
 
 	.tagline {
 		font-family: 'Instrument Serif', Georgia, serif;
 		font-style: italic;
-		font-size: 1.5rem;
+		font-size: 1.2rem;
 		color: var(--accent);
 		margin-top: 0.5rem;
 	}
 
 	.description {
-		font-size: 0.9rem;
-		line-height: 1.8;
+		font-size: 0.85rem;
+		line-height: 1.75;
 		color: var(--text-dim);
-		max-width: 380px;
-		margin-top: 1rem;
+		max-width: 320px;
+		margin-top: 0.75rem;
 	}
 
-	/* Stats */
 	.stats {
 		display: flex;
-		gap: 3rem;
+		gap: 2.5rem;
 	}
 
 	.stat {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.35rem;
 	}
 
 	.stat-value {
-		font-size: 1.75rem;
+		font-size: 1.4rem;
 		font-weight: 600;
-		color: var(--text);
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.stat-value.status-active {
 		color: var(--accent);
-		font-size: 0.9rem;
+		font-size: 0.8rem;
 		letter-spacing: 0.1em;
 	}
 
@@ -330,23 +388,19 @@
 	}
 
 	@keyframes pulse {
-		0%, 100% {
-			box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
-		}
-		50% {
-			box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
-		}
+		0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+		50% { box-shadow: 0 0 0 8px transparent; }
 	}
 
 	.stat-label {
-		font-size: 0.65rem;
-		letter-spacing: 0.15em;
+		font-size: 0.6rem;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-muted);
 	}
 
 	.loading {
-		animation: fade 1s ease-in-out infinite;
+		animation: fade 1s infinite;
 	}
 
 	@keyframes fade {
@@ -354,149 +408,78 @@
 		50% { opacity: 0.3; }
 	}
 
-	/* CTA */
 	.cta {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.6rem;
 		color: var(--text);
 		text-decoration: none;
-		font-size: 0.8rem;
-		letter-spacing: 0.05em;
-		padding: 1rem 0;
+		font-size: 0.75rem;
+		letter-spacing: 0.04em;
+		padding: 0.8rem 0;
 		border-top: 1px solid var(--text-muted);
 		border-bottom: 1px solid var(--text-muted);
-		transition: all 0.3s ease;
+		transition: all 0.3s;
 		width: fit-content;
 	}
 
 	.cta:hover {
 		color: var(--accent);
 		border-color: var(--accent);
-		padding-left: 1rem;
-	}
-
-	.arrow {
-		transition: transform 0.3s ease;
+		padding-left: 0.6rem;
 	}
 
 	.cta:hover .arrow {
 		transform: translateX(4px);
 	}
 
-	/* Footer */
+	.arrow {
+		transition: transform 0.3s;
+	}
+
 	footer {
-		margin-top: auto;
 		padding-top: 2rem;
 	}
 
 	.quote {
 		font-family: 'Instrument Serif', Georgia, serif;
 		font-style: italic;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		color: var(--text-dim);
-		line-height: 1.6;
+		line-height: 1.5;
 	}
 
 	.attribution {
-		font-size: 0.7rem;
+		font-size: 0.65rem;
 		color: var(--text-muted);
-		margin-top: 0.5rem;
-		letter-spacing: 0.1em;
+		margin-top: 0.4rem;
+		letter-spacing: 0.08em;
 	}
 
-	/* Halftone Eye */
-	.eye-container {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: flex-start;
-		overflow: hidden;
-		padding-left: 2rem;
-	}
-
-	.halftone-eye {
-		font-family: 'JetBrains Mono', monospace;
-		font-size: clamp(0.35rem, 0.9vw, 0.55rem);
-		line-height: 1.1;
-		letter-spacing: 0.1em;
-		color: var(--text-muted);
-		white-space: pre;
-		user-select: none;
-		animation: eye-breathe 8s ease-in-out infinite;
-	}
-
-	@keyframes eye-breathe {
-		0%, 100% {
-			opacity: 0.8;
-			filter: blur(0px);
-		}
-		50% {
-			opacity: 1;
-			filter: blur(0.3px);
-		}
-	}
-
-	.eye-row {
-		display: block;
-	}
-
-	.sclera {
-		color: #444;
-	}
-
-	.iris {
-		color: var(--accent);
-		text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-		animation: iris-glow 4s ease-in-out infinite;
-	}
-
-	@keyframes iris-glow {
-		0%, 100% {
-			text-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
-		}
-		50% {
-			text-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
-		}
-	}
-
-	.pupil {
-		color: #111;
-		text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
-	}
-
-	/* Responsive */
-	@media (max-width: 1024px) {
-		.layout {
-			grid-template-columns: 1fr;
-			grid-template-rows: 1fr auto;
-		}
-
-		.eye-container {
-			position: absolute;
-			inset: 0;
-			opacity: 0.15;
-			justify-content: center;
-			padding: 0;
-		}
-
+	/* ===== RESPONSIVE ===== */
+	@media (max-width: 768px) {
 		.content {
 			padding: 2rem;
+			max-width: none;
+		}
+		.wordmark {
+			font-size: 3rem;
+		}
+		.stats {
+			flex-direction: column;
+			gap: 1.25rem;
+		}
+		.eye-container {
+			opacity: 0.1;
 		}
 	}
 
-	@media (max-width: 640px) {
-		.wordmark {
-			font-size: 3.5rem;
-		}
-
-		.stats {
-			flex-direction: column;
-			gap: 1.5rem;
-		}
-
+	@media (max-width: 480px) {
 		.content {
 			padding: 1.5rem;
+		}
+		.wordmark {
+			font-size: 2.5rem;
 		}
 	}
 </style>
