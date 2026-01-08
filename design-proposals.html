@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Argus Background Proposals</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030303;
+            --card-bg: #0a0a0a;
+            --text: #e8e8e8;
+            --text-dim: #666;
+            --text-muted: #333;
+            --accent: #f59e0b;
+            --accent-glow: rgba(245, 158, 11, 0.4);
+            --accent-dim: rgba(245, 158, 11, 0.15);
+            --accent-subtle: rgba(245, 158, 11, 0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.6;
+        }
+
+        header {
+            padding: 3rem;
+            text-align: center;
+            border-bottom: 1px solid var(--text-muted);
+        }
+
+        h1 {
+            font-family: 'Instrument Serif', serif;
+            font-size: 2.5rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--text-muted);
+        }
+
+        .proposal {
+            background: var(--bg);
+            min-height: 500px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .proposal-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            background: linear-gradient(to top, var(--bg) 0%, transparent 100%);
+            z-index: 10;
+        }
+
+        .proposal-num {
+            font-size: 0.6rem;
+            color: var(--accent);
+            letter-spacing: 0.2em;
+            margin-bottom: 0.25rem;
+        }
+
+        .proposal-title {
+            font-family: 'Instrument Serif', serif;
+            font-size: 1.2rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .proposal-desc {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .canvas {
+            position: absolute;
+            inset: 0;
+        }
+
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+
+        /* =============================================
+           PROPOSAL 1: Floating Eye Symbols
+           ============================================= */
+        .p1-container {
+            position: absolute;
+            inset: 0;
+        }
+
+        .p1-eye {
+            position: absolute;
+            font-size: 1.2rem;
+            color: var(--accent);
+            opacity: 0;
+            animation: p1-float 8s ease-in-out infinite;
+        }
+
+        @keyframes p1-float {
+            0%, 100% { transform: translateY(0) scale(0.8); opacity: 0; }
+            10% { opacity: 0.6; }
+            50% { transform: translateY(-30px) scale(1); opacity: 0.3; }
+            90% { opacity: 0.6; }
+        }
+
+        /* =============================================
+           PROPOSAL 2: Watching Grid (follows mouse conceptually)
+           ============================================= */
+        .p2-grid {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 8px;
+            padding: 30px;
+        }
+
+        .p2-dot {
+            width: 4px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 50%;
+            opacity: 0.15;
+            justify-self: center;
+            align-self: center;
+            animation: p2-pulse 3s ease-in-out infinite;
+        }
+
+        .p2-dot:nth-child(odd) { animation-delay: -1.5s; }
+        .p2-dot:nth-child(3n) { animation-delay: -0.75s; }
+
+        @keyframes p2-pulse {
+            0%, 100% { opacity: 0.1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.5); }
+        }
+
+        /* =============================================
+           PROPOSAL 3: Network Web
+           ============================================= */
+        .p3-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .p3-node {
+            fill: var(--accent);
+            opacity: 0.6;
+        }
+
+        .p3-line {
+            stroke: var(--accent);
+            stroke-width: 0.5;
+            opacity: 0.15;
+        }
+
+        .p3-pulse {
+            fill: var(--accent);
+            animation: p3-nodePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes p3-nodePulse {
+            0%, 100% { opacity: 0.3; r: 2; }
+            50% { opacity: 0.8; r: 4; }
+        }
+
+        /* =============================================
+           PROPOSAL 4: Radar Sonar
+           ============================================= */
+        .p4-radar {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .p4-ring {
+            position: absolute;
+            border: 1px solid var(--accent);
+            border-radius: 50%;
+            opacity: 0;
+            animation: p4-expand 4s ease-out infinite;
+        }
+
+        .p4-ring:nth-child(1) { animation-delay: 0s; }
+        .p4-ring:nth-child(2) { animation-delay: 1s; }
+        .p4-ring:nth-child(3) { animation-delay: 2s; }
+        .p4-ring:nth-child(4) { animation-delay: 3s; }
+
+        .p4-sweep {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 150px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+            transform-origin: left center;
+            animation: p4-spin 4s linear infinite;
+        }
+
+        .p4-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        @keyframes p4-expand {
+            0% { width: 0; height: 0; top: 50%; left: 50%; opacity: 0.8; }
+            100% { width: 300px; height: 300px; top: calc(50% - 150px); left: calc(50% - 150px); opacity: 0; }
+        }
+
+        @keyframes p4-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* =============================================
+           PROPOSAL 5: Matrix Rain
+           ============================================= */
+        .p5-container {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+
+        .p5-column {
+            position: absolute;
+            top: -100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--accent);
+            writing-mode: vertical-rl;
+            animation: p5-fall linear infinite;
+            opacity: 0.4;
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        @keyframes p5-fall {
+            from { transform: translateY(0); }
+            to { transform: translateY(200%); }
+        }
+
+        /* =============================================
+           PROPOSAL 6: Constellation Eye
+           ============================================= */
+        .p6-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .p6-star {
+            fill: var(--accent);
+            animation: p6-twinkle 2s ease-in-out infinite;
+        }
+
+        .p6-line {
+            stroke: var(--accent);
+            stroke-width: 0.5;
+            opacity: 0.2;
+            stroke-dasharray: 4 4;
+        }
+
+        @keyframes p6-twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* =============================================
+           PROPOSAL 7: Single Orb
+           ============================================= */
+        .p7-orb {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(
+                circle at 30% 30%,
+                rgba(255, 255, 255, 0.1) 0%,
+                var(--accent-dim) 30%,
+                var(--accent-glow) 50%,
+                var(--accent-subtle) 70%,
+                transparent 100%
+            );
+            box-shadow:
+                0 0 60px var(--accent-glow),
+                0 0 100px var(--accent-dim),
+                inset 0 0 60px var(--accent-dim);
+            animation: p7-breathe 4s ease-in-out infinite;
+        }
+
+        .p7-core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 30px var(--accent);
+            animation: p7-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes p7-breathe {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        }
+
+        @keyframes p7-pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(0.8); }
+        }
+
+        /* =============================================
+           PROPOSAL 8: Sacred Geometry
+           ============================================= */
+        .p8-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .p8-shape {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border: 1px solid var(--accent);
+            opacity: 0.3;
+        }
+
+        .p8-circle {
+            border-radius: 50%;
+            animation: p8-rotate 20s linear infinite;
+        }
+
+        .p8-triangle {
+            width: 0;
+            height: 0;
+            border-left: 80px solid transparent;
+            border-right: 80px solid transparent;
+            border-bottom: 140px solid transparent;
+            border-bottom-color: var(--accent);
+            background: none;
+            animation: p8-rotate 30s linear infinite reverse;
+        }
+
+        .p8-eye {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: var(--accent);
+            animation: p8-glow 3s ease-in-out infinite;
+        }
+
+        @keyframes p8-rotate {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        @keyframes p8-glow {
+            0%, 100% { opacity: 0.5; text-shadow: 0 0 20px var(--accent-glow); }
+            50% { opacity: 1; text-shadow: 0 0 40px var(--accent); }
+        }
+
+        /* =============================================
+           PROPOSAL 9: Thermal Vision
+           ============================================= */
+        .p9-thermal {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 40% 50% at 50% 50%, var(--accent-glow) 0%, transparent 50%),
+                radial-gradient(ellipse 30% 40% at 30% 40%, var(--accent-dim) 0%, transparent 40%),
+                radial-gradient(ellipse 25% 35% at 70% 60%, var(--accent-dim) 0%, transparent 40%);
+            animation: p9-shift 8s ease-in-out infinite;
+            filter: blur(30px);
+        }
+
+        .p9-scanline {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent);
+            opacity: 0.3;
+            animation: p9-scan 3s linear infinite;
+        }
+
+        .p9-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--accent-subtle) 1px, transparent 1px),
+                linear-gradient(90deg, var(--accent-subtle) 1px, transparent 1px);
+            background-size: 30px 30px;
+            opacity: 0.5;
+        }
+
+        @keyframes p9-shift {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.8; }
+        }
+
+        @keyframes p9-scan {
+            from { top: -2px; }
+            to { top: 100%; }
+        }
+
+        /* =============================================
+           PROPOSAL 10: Topographic Contours
+           ============================================= */
+        .p10-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .p10-contour {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 0.5;
+            opacity: 0.25;
+        }
+
+        .p10-contour:nth-child(odd) {
+            animation: p10-pulse 4s ease-in-out infinite;
+        }
+
+        .p10-contour:nth-child(even) {
+            animation: p10-pulse 4s ease-in-out infinite reverse;
+        }
+
+        .p10-center {
+            fill: var(--accent);
+            animation: p10-glow 3s ease-in-out infinite;
+        }
+
+        @keyframes p10-pulse {
+            0%, 100% { opacity: 0.15; }
+            50% { opacity: 0.4; }
+        }
+
+        @keyframes p10-glow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Argus Background Proposals</h1>
+        <p class="subtitle">Visual Metaphors for Surveillance</p>
+    </header>
+
+    <div class="grid">
+        <!-- PROPOSAL 1: Floating Eye Symbols -->
+        <div class="proposal">
+            <div class="p1-container" id="p1"></div>
+            <div class="proposal-info">
+                <p class="proposal-num">01</p>
+                <h2 class="proposal-title">Floating Eyes</h2>
+                <p class="proposal-desc">Scattered ◉ symbols drifting like particles</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 2: Watching Grid -->
+        <div class="proposal">
+            <div class="p2-grid" id="p2"></div>
+            <div class="proposal-info">
+                <p class="proposal-num">02</p>
+                <h2 class="proposal-title">Watching Grid</h2>
+                <p class="proposal-desc">Array of pulsing dots - omnipresent surveillance</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 3: Network Web -->
+        <div class="proposal">
+            <svg class="p3-svg" id="p3"></svg>
+            <div class="proposal-info">
+                <p class="proposal-num">03</p>
+                <h2 class="proposal-title">Network Web</h2>
+                <p class="proposal-desc">Connected nodes - data surveillance network</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 4: Radar Sonar -->
+        <div class="proposal">
+            <div class="p4-radar">
+                <div class="p4-ring"></div>
+                <div class="p4-ring"></div>
+                <div class="p4-ring"></div>
+                <div class="p4-ring"></div>
+                <div class="p4-sweep"></div>
+                <div class="p4-center"></div>
+            </div>
+            <div class="proposal-info">
+                <p class="proposal-num">04</p>
+                <h2 class="proposal-title">Radar Sweep</h2>
+                <p class="proposal-desc">Pulsing detection rings - always scanning</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 5: Matrix Rain -->
+        <div class="proposal">
+            <div class="p5-container" id="p5"></div>
+            <div class="proposal-info">
+                <p class="proposal-num">05</p>
+                <h2 class="proposal-title">Data Rain</h2>
+                <p class="proposal-desc">Falling characters - digital surveillance stream</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 6: Constellation -->
+        <div class="proposal">
+            <svg class="p6-svg" id="p6"></svg>
+            <div class="proposal-info">
+                <p class="proposal-num">06</p>
+                <h2 class="proposal-title">Constellation</h2>
+                <p class="proposal-desc">Stars forming eye shape - celestial watcher</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 7: Single Orb -->
+        <div class="proposal">
+            <div class="p7-orb"></div>
+            <div class="p7-core"></div>
+            <div class="proposal-info">
+                <p class="proposal-num">07</p>
+                <h2 class="proposal-title">The Orb</h2>
+                <p class="proposal-desc">Single massive presence - minimal, powerful</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 8: Sacred Geometry -->
+        <div class="proposal">
+            <div class="p8-container">
+                <div class="p8-shape p8-circle" style="width:200px;height:200px;"></div>
+                <div class="p8-shape p8-circle" style="width:150px;height:150px;animation-direction:reverse;"></div>
+                <div class="p8-shape p8-circle" style="width:100px;height:100px;"></div>
+                <div class="p8-eye">◉</div>
+            </div>
+            <div class="proposal-info">
+                <p class="proposal-num">08</p>
+                <h2 class="proposal-title">Sacred Geometry</h2>
+                <p class="proposal-desc">Rotating circles - mystical all-seeing</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 9: Thermal Vision -->
+        <div class="proposal">
+            <div class="p9-thermal"></div>
+            <div class="p9-grid"></div>
+            <div class="p9-scanline"></div>
+            <div class="proposal-info">
+                <p class="proposal-num">09</p>
+                <h2 class="proposal-title">Thermal Vision</h2>
+                <p class="proposal-desc">Heat signature detection - surveillance tech</p>
+            </div>
+        </div>
+
+        <!-- PROPOSAL 10: Topographic -->
+        <div class="proposal">
+            <svg class="p10-svg" id="p10"></svg>
+            <div class="proposal-info">
+                <p class="proposal-num">10</p>
+                <h2 class="proposal-title">Topographic Eye</h2>
+                <p class="proposal-desc">Contour lines converging - mapping the watched</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PROPOSAL 1: Generate floating eyes
+        const p1 = document.getElementById('p1');
+        const eyes = ['◉', '◎', '⊙', '●', '○'];
+        for (let i = 0; i < 25; i++) {
+            const eye = document.createElement('span');
+            eye.className = 'p1-eye';
+            eye.textContent = eyes[Math.floor(Math.random() * eyes.length)];
+            eye.style.left = Math.random() * 100 + '%';
+            eye.style.top = Math.random() * 100 + '%';
+            eye.style.animationDelay = Math.random() * 8 + 's';
+            eye.style.animationDuration = (6 + Math.random() * 4) + 's';
+            p1.appendChild(eye);
+        }
+
+        // PROPOSAL 2: Generate grid dots
+        const p2 = document.getElementById('p2');
+        for (let i = 0; i < 150; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'p2-dot';
+            dot.style.animationDelay = (Math.random() * 3) + 's';
+            p2.appendChild(dot);
+        }
+
+        // PROPOSAL 3: Generate network
+        const p3 = document.getElementById('p3');
+        const nodes = [];
+        const nodeCount = 20;
+
+        for (let i = 0; i < nodeCount; i++) {
+            const x = 50 + Math.random() * 300;
+            const y = 50 + Math.random() * 400;
+            nodes.push({ x, y });
+
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', 3);
+            circle.setAttribute('class', 'p3-node p3-pulse');
+            circle.style.animationDelay = (Math.random() * 2) + 's';
+            p3.appendChild(circle);
+        }
+
+        // Connect nearby nodes
+        for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+                const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+                if (dist < 120) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', nodes[i].x);
+                    line.setAttribute('y1', nodes[i].y);
+                    line.setAttribute('x2', nodes[j].x);
+                    line.setAttribute('y2', nodes[j].y);
+                    line.setAttribute('class', 'p3-line');
+                    p3.insertBefore(line, p3.firstChild);
+                }
+            }
+        }
+
+        // PROPOSAL 5: Matrix rain
+        const p5 = document.getElementById('p5');
+        const chars = '01◉◎⊙●○ARGUS';
+        for (let i = 0; i < 20; i++) {
+            const col = document.createElement('div');
+            col.className = 'p5-column';
+            col.style.left = (i * 5 + Math.random() * 3) + '%';
+            col.style.animationDuration = (4 + Math.random() * 4) + 's';
+            col.style.animationDelay = (Math.random() * 4) + 's';
+            col.style.opacity = 0.1 + Math.random() * 0.4;
+
+            let text = '';
+            for (let j = 0; j < 30; j++) {
+                text += chars[Math.floor(Math.random() * chars.length)] + ' ';
+            }
+            col.textContent = text;
+            p5.appendChild(col);
+        }
+
+        // PROPOSAL 6: Constellation
+        const p6 = document.getElementById('p6');
+        const starPositions = [
+            // Eye shape constellation
+            {x: 200, y: 250}, // center
+            {x: 120, y: 250}, {x: 280, y: 250}, // horizontal
+            {x: 150, y: 220}, {x: 250, y: 220}, // top curve
+            {x: 150, y: 280}, {x: 250, y: 280}, // bottom curve
+            {x: 100, y: 240}, {x: 300, y: 240}, // outer points
+            {x: 100, y: 260}, {x: 300, y: 260},
+            // Random ambient stars
+            {x: 50, y: 100}, {x: 350, y: 80}, {x: 180, y: 50},
+            {x: 320, y: 400}, {x: 80, y: 380}, {x: 250, y: 450}
+        ];
+
+        // Draw constellation lines
+        const eyeConnections = [
+            [0,1], [0,2], [1,3], [2,4], [3,4], [1,5], [2,6], [5,6],
+            [1,7], [2,8], [7,9], [8,10]
+        ];
+
+        eyeConnections.forEach(([a, b]) => {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', starPositions[a].x);
+            line.setAttribute('y1', starPositions[a].y);
+            line.setAttribute('x2', starPositions[b].x);
+            line.setAttribute('y2', starPositions[b].y);
+            line.setAttribute('class', 'p6-line');
+            p6.appendChild(line);
+        });
+
+        // Draw stars
+        starPositions.forEach((pos, i) => {
+            const star = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            star.setAttribute('cx', pos.x);
+            star.setAttribute('cy', pos.y);
+            star.setAttribute('r', i === 0 ? 5 : (i < 11 ? 3 : 2));
+            star.setAttribute('class', 'p6-star');
+            star.style.animationDelay = (Math.random() * 2) + 's';
+            p6.appendChild(star);
+        });
+
+        // PROPOSAL 10: Topographic contours
+        const p10 = document.getElementById('p10');
+        const centerX = 200;
+        const centerY = 250;
+
+        // Draw elliptical contours (eye shape)
+        for (let i = 1; i <= 8; i++) {
+            const ellipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            ellipse.setAttribute('cx', centerX);
+            ellipse.setAttribute('cy', centerY);
+            ellipse.setAttribute('rx', 20 + i * 20);
+            ellipse.setAttribute('ry', 10 + i * 12);
+            ellipse.setAttribute('class', 'p10-contour');
+            ellipse.style.animationDelay = (i * 0.2) + 's';
+            p10.appendChild(ellipse);
+        }
+
+        // Center point
+        const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        center.setAttribute('cx', centerX);
+        center.setAttribute('cy', centerY);
+        center.setAttribute('r', 6);
+        center.setAttribute('class', 'p10-center');
+        p10.appendChild(center);
+    </script>
+</body>
+</html>
