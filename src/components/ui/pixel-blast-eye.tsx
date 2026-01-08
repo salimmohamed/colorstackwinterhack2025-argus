@@ -310,7 +310,8 @@ export function PixelBlastEye({
 
           const dist = Math.sqrt((i - centerX) ** 2 + (j - centerY) ** 2);
           const irisRadius = Math.min(state.cols, state.rows) * 0.15;
-          const colorWarmth = dist < irisRadius ? 1 : 0.9 + Math.random() * 0.08;
+          // Use noise-based variation instead of Math.random() for consistent results
+          const colorWarmth = dist < irisRadius ? 1 : 0.9 + (flickerNoise * 0.08);
 
           ctx.fillStyle = `rgba(${r}, ${Math.floor(g * colorWarmth)}, ${b}, ${finalOpacity})`;
           ctx.fillRect(x, y, pixelSize, pixelSize);

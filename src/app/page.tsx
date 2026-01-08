@@ -9,7 +9,7 @@ export default function Home() {
   const markets = useQuery(api.markets.listActive, {});
 
   return (
-    <div className="min-h-screen relative flex">
+    <div className="min-h-screen relative flex" suppressHydrationWarning>
       {/* Left side - Text content (40%) */}
       <div className="w-[40%] min-h-screen relative z-10 bg-[var(--background)]">
         <div className="flex flex-col min-h-screen p-12 pr-16">
