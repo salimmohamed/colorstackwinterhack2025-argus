@@ -3,6 +3,9 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import { useState, useMemo } from "react";
+
+type SortField = "riskScore" | "volume" | "winRate";
 
 function getRiskColor(score: number) {
   if (score >= 70) return "#f44336";
@@ -22,6 +25,23 @@ function formatVolume(vol: number) {
 
 export default function AccountsPage() {
   const accounts = useQuery(api.accounts.listFlagged, {});
+  const [sortField, setSortField] = useState<SortField>("riskScore");
+
+  const sortedAccounts = useMemo(() => {
+    if (!accounts) return undefined;
+    return [...accounts].sort((a, b) => {
+      switch (sortField) {
+        case "riskScore":
+          return b.riskScore - a.riskScore;
+        case "volume":
+          return (b.totalVolume ?? 0) - (a.totalVolume ?? 0);
+        case "winRate":
+          return (b.winRate ?? 0) - (a.winRate ?? 0);
+        default:
+          return 0;
+      }
+    });
+  }, [accounts, sortField]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-8">
@@ -36,19 +56,23 @@ export default function AccountsPage() {
 
         <header className="flex justify-between items-center pb-6 border-b border-[#1a1a1a] mb-8">
           <h1 className="text-2xl font-semibold text-[#fafafa]">Flagged Accounts</h1>
-          <select className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer">
+          <select
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value as SortField)}
+            className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
+          >
             <option value="riskScore">Sort by Risk Score</option>
             <option value="volume">Sort by Volume</option>
             <option value="winRate">Sort by Win Rate</option>
           </select>
         </header>
 
-        {accounts === undefined ? (
+        {sortedAccounts === undefined ? (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
             <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
             <p className="mt-4 text-sm text-[#666]">Loading accounts...</p>
           </div>
-        ) : accounts.length === 0 ? (
+        ) : sortedAccounts.length === 0 ? (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
             <span className="text-4xl text-[#333] block mb-4">◎</span>
             <h3 className="text-base text-[#fafafa] mb-2">No flagged accounts</h3>
@@ -67,7 +91,7 @@ export default function AccountsPage() {
             </div>
 
             {/* Table rows */}
-            {accounts.map((account) => (
+            {sortedAccounts.map((account) => (
               <div
                 key={account._id}
                 className="grid grid-cols-[2fr_1fr_0.75fr_1fr_0.75fr_0.75fr] gap-4 px-6 py-4 items-center border-t border-[#1a1a1a] border-l-[3px] border-l-[#f44336] hover:bg-[#111] transition-colors cursor-pointer"

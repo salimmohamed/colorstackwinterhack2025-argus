@@ -3,8 +3,12 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import { useState, useMemo } from "react";
 
-function getSeverityColor(severity: "low" | "medium" | "high" | "critical") {
+type Severity = "low" | "medium" | "high" | "critical";
+type Status = "new" | "investigating" | "confirmed" | "dismissed";
+
+function getSeverityColor(severity: Severity) {
   const colors = {
     low: "#22c55e",
     medium: "#f59e0b",
@@ -26,6 +30,17 @@ function formatTime(timestamp: number) {
 
 export default function AlertsPage() {
   const alerts = useQuery(api.alerts.listRecent, { limit: 50 });
+  const [severityFilter, setSeverityFilter] = useState<Severity | "">("");
+  const [statusFilter, setStatusFilter] = useState<Status | "">("");
+
+  const filteredAlerts = useMemo(() => {
+    if (!alerts) return undefined;
+    return alerts.filter((alert) => {
+      if (severityFilter && alert.severity !== severityFilter) return false;
+      if (statusFilter && alert.status !== statusFilter) return false;
+      return true;
+    });
+  }, [alerts, severityFilter, statusFilter]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-8">
@@ -44,14 +59,22 @@ export default function AlertsPage() {
             <p className="mt-2 text-sm text-[#666]">Suspicious trading patterns flagged by Argus</p>
           </div>
           <div className="flex gap-2">
-            <select className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer">
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value as Severity | "")}
+              className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
+            >
               <option value="">All Severities</option>
               <option value="critical">Critical</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
             </select>
-            <select className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as Status | "")}
+              className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
+            >
               <option value="">All Statuses</option>
               <option value="new">New</option>
               <option value="investigating">Investigating</option>
@@ -62,19 +85,23 @@ export default function AlertsPage() {
         </header>
 
         <div className="flex flex-col gap-3">
-          {alerts === undefined ? (
+          {filteredAlerts === undefined ? (
             <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
               <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
               <p className="mt-4 text-sm text-[#666]">Loading alerts...</p>
             </div>
-          ) : alerts.length === 0 ? (
+          ) : filteredAlerts.length === 0 ? (
             <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
               <span className="text-4xl text-[#333] block mb-4">◎</span>
               <h3 className="text-base text-[#fafafa] mb-2">No alerts detected</h3>
-              <p className="text-sm text-[#666]">The agent will create alerts when it detects suspicious trading activity.</p>
+              <p className="text-sm text-[#666]">
+                {severityFilter || statusFilter
+                  ? "No alerts match the selected filters."
+                  : "The agent will create alerts when it detects suspicious trading activity."}
+              </p>
             </div>
           ) : (
-            alerts.map((alert) => (
+            filteredAlerts.map((alert) => (
               <div
                 key={alert._id}
                 className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 hover:border-[#252525] hover:bg-[#0f0f0f] transition-all"
