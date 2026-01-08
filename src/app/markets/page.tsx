@@ -137,7 +137,9 @@ export default function MarketsPage() {
                   {market.question}
                 </h3>
                 <div className="flex flex-col gap-2 mb-4">
-                  {market.outcomes.map((outcome, i) => (
+                  {market.outcomes
+                    .filter((outcome) => outcome.price > 0.005) // Hide outcomes with <1% chance
+                    .map((outcome, i) => (
                     <div
                       key={i}
                       className={`flex justify-between items-center px-3 py-2 bg-[#111] border rounded relative overflow-hidden ${
