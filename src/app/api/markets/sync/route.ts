@@ -10,14 +10,23 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
  */
 function extractCandidateName(market: GammaMarket): string {
   if (market.question) {
-    const willMatch = market.question.match(/^Will\s+(.+?)\s+(win|become|be)\b/i);
+    // Clean the question - remove trailing numbers that aren't years (like IDs)
+    let cleanedQuestion = market.question
+      .replace(/\s+\d{2,6}\s+\d{2,6}$/i, "") // Remove trailing number pairs like "344 142"
+      .replace(/\s+\d{6,}$/i, "") // Remove trailing long numbers
+      .trim();
+
+    const willMatch = cleanedQuestion.match(/^Will\s+(.+?)\s+(win|become|be)\b/i);
     if (willMatch) {
       return willMatch[1].trim();
     }
-    const toMatch = market.question.match(/^(.+?)\s+to\s+(win|become|be)\b/i);
+    const toMatch = cleanedQuestion.match(/^(.+?)\s+to\s+(win|become|be)\b/i);
     if (toMatch) {
       return toMatch[1].trim();
     }
+
+    // For questions that don't match patterns, just return the cleaned question
+    return cleanedQuestion;
   }
 
   if (market.slug) {
