@@ -1,0 +1,102 @@
+"use client";
+
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import Link from "next/link";
+
+function getRiskColor(score: number) {
+  if (score >= 70) return "#f44336";
+  if (score >= 40) return "#ff9800";
+  return "#4caf50";
+}
+
+function shortenAddress(addr: string) {
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function formatVolume(vol: number) {
+  if (vol >= 1000000) return `$${(vol / 1000000).toFixed(1)}M`;
+  if (vol >= 1000) return `$${(vol / 1000).toFixed(0)}K`;
+  return `$${vol}`;
+}
+
+export default function AccountsPage() {
+  const accounts = useQuery(api.accounts.listFlagged, {});
+
+  return (
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Back link */}
+        <Link
+          href="/"
+          className="text-[var(--text-dim)] text-xs tracking-[0.1em] uppercase hover:text-[var(--accent)] transition-colors mb-8 inline-block"
+        >
+          ← Back
+        </Link>
+
+        <header className="flex justify-between items-center pb-6 border-b border-[#1a1a1a] mb-8">
+          <h1 className="text-2xl font-semibold text-[#fafafa]">Flagged Accounts</h1>
+          <select className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer">
+            <option value="riskScore">Sort by Risk Score</option>
+            <option value="volume">Sort by Volume</option>
+            <option value="winRate">Sort by Win Rate</option>
+          </select>
+        </header>
+
+        {accounts === undefined ? (
+          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
+            <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
+            <p className="mt-4 text-sm text-[#666]">Loading accounts...</p>
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
+            <span className="text-4xl text-[#333] block mb-4">◎</span>
+            <h3 className="text-base text-[#fafafa] mb-2">No flagged accounts</h3>
+            <p className="text-sm text-[#666]">Accounts will appear here when the agent flags suspicious activity.</p>
+          </div>
+        ) : (
+          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
+            {/* Table header */}
+            <div className="grid grid-cols-[2fr_1fr_0.75fr_1fr_0.75fr_0.75fr] gap-4 px-6 py-4 bg-[#0f0f0f] text-xs font-bold text-[#666] uppercase tracking-wider">
+              <span>Account</span>
+              <span>Risk Score</span>
+              <span>Trades</span>
+              <span>Volume</span>
+              <span>Win Rate</span>
+              <span>Age</span>
+            </div>
+
+            {/* Table rows */}
+            {accounts.map((account) => (
+              <div
+                key={account._id}
+                className="grid grid-cols-[2fr_1fr_0.75fr_1fr_0.75fr_0.75fr] gap-4 px-6 py-4 items-center border-t border-[#1a1a1a] border-l-[3px] border-l-[#f44336] hover:bg-[#111] transition-colors cursor-pointer"
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="font-mono text-[#fafafa]">{shortenAddress(account.address)}</span>
+                  {account.displayName && (
+                    <span className="text-xs text-[#666]">{account.displayName}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-2 rounded max-w-[60px]"
+                    style={{
+                      width: `${account.riskScore}%`,
+                      backgroundColor: getRiskColor(account.riskScore),
+                    }}
+                  />
+                  <span className="text-sm">{account.riskScore}</span>
+                </div>
+                <span className="text-sm">{account.totalTrades ?? 0}</span>
+                <span className="text-sm">{formatVolume(account.totalVolume ?? 0)}</span>
+                <span className="text-sm">{((account.winRate ?? 0) * 100).toFixed(0)}%</span>
+                <span className="text-sm">{account.accountAgeDays ?? "?"} days</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
