@@ -12,8 +12,8 @@ export interface GammaMarket {
 	slug: string | null;
 	category: string | null;
 	description: string | null;
-	outcomePrices: string[];
-	outcomes: string[];
+	outcomePrices: string | string[]; // Can be JSON string or array
+	outcomes: string | string[]; // Can be JSON string or array
 	volume: string | null;
 	volumeNum: number | null;
 	volume24hr: number | null;
@@ -162,8 +162,17 @@ export interface GetEventsParams {
 	offset?: number;
 }
 
-// Add events methods to the class
+// Extend the GammaClient class with event methods
+declare module "./gamma" {
+	interface GammaClient {
+		getEvents(params?: GetEventsParams): Promise<GammaEvent[]>;
+		getEventBySlug(slug: string): Promise<GammaEvent | null>;
+		getTopPoliticalEvents(limit?: number): Promise<GammaEvent[]>;
+	}
+}
+
 GammaClient.prototype.getEvents = async function (
+	this: GammaClient,
 	params: GetEventsParams = {},
 ): Promise<GammaEvent[]> {
 	const searchParams = new URLSearchParams();
@@ -175,7 +184,7 @@ GammaClient.prototype.getEvents = async function (
 	if (params.limit) searchParams.set("limit", String(params.limit));
 	if (params.offset) searchParams.set("offset", String(params.offset));
 
-	const url = `${this.baseUrl}/events?${searchParams}`;
+	const url = `${(this as any).baseUrl}/events?${searchParams}`;
 	const response = await fetch(url);
 
 	if (!response.ok) {
@@ -188,9 +197,10 @@ GammaClient.prototype.getEvents = async function (
 };
 
 GammaClient.prototype.getEventBySlug = async function (
+	this: GammaClient,
 	slug: string,
 ): Promise<GammaEvent | null> {
-	const url = `${this.baseUrl}/events/slug/${encodeURIComponent(slug)}`;
+	const url = `${(this as any).baseUrl}/events/slug/${encodeURIComponent(slug)}`;
 	const response = await fetch(url);
 
 	if (response.status === 404) {
@@ -210,6 +220,7 @@ GammaClient.prototype.getEventBySlug = async function (
  * Get top political events by volume
  */
 GammaClient.prototype.getTopPoliticalEvents = async function (
+	this: GammaClient,
 	limit = 10,
 ): Promise<GammaEvent[]> {
 	const events = await this.getEvents({
