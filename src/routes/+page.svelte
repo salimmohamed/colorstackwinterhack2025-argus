@@ -1,32 +1,71 @@
 <script lang="ts">
 	import { useQuery } from "convex-svelte";
 	import { api } from "../../convex/_generated/api.js";
-	import { onMount } from "svelte";
 
 	const marketsQuery = useQuery(api.markets.listActive, () => ({}));
 
-	// Optimized: 130x100 grid, rendered as plain text (no per-char spans)
-	const WIDTH = 130;
-	const HEIGHT = 100;
-
-	const CHARS = [' ', ' ', '·', '∙', '○', '◐', '●', '◉'];
-
-	function generateEyeText(): string {
-		// Return grid of spaces to maintain container size for iris-glow
-		let result = '';
-		for (let y = 0; y < HEIGHT; y++) {
-			result += ' '.repeat(WIDTH) + '\n';
-		}
-		return result;
-	}
-
-	let eyeText = '';
-	let mounted = false;
-
-	onMount(() => {
-		eyeText = generateEyeText();
-		mounted = true;
-	});
+	// ASCII art of Argus - the many-eyed giant (profile with scattered eyes)
+	const ARGUS_ART = `
+                                                    ···:::;;;+++***
+                                               ··::;;++**##%%@@@@@@@@%%
+                                           ··::;++*##%%@@@@@@@@@@@@@@@@@@%
+                                        ·::;+*##%@@@@@@@@◉@@@@@@@@@@@@@@@@%
+                                      ·:;+*#%@@@@@@@  ◉  @@@@@◉@@@@@@@@@@@@%
+                                    ·:;+#%@@@@@@@@  (◉)  @@@@@@@@@@◉@@@@@@@%#
+                                   ·:+*%@@@@@@@@@@@     @@@@@@@@@@@@@@@@@@@%#*
+                                  ·;+#%@@@@@@  ◉  @@@@@@@@  ◉  @@@@@@@@@@@%#*+
+                                 ·:+#%@@@@@  (◉)  @@@@@@  (◉)  @@@@◉@@@@@@%#*;
+                                 ;+#%@@@@@@      @@@@@@@@      @@@@@@@@@@@%#*+:
+                                :+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#*;·
+                               ·;*%@@@@@@@@@@  ◉  @@@@@@@@  ◉  @@@@@@@@@@@@%#+:
+                               :+#%@@@@@@@  (◉)  @@@@@@  (◉)  @@@@@@@◉@@@@@%#*;
+                              ·;*%@@@@@@@@       @@@@@@@@      @@@@@@@@@@@@%#*+·
+                              :+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#*;
+                              ;*%@@@@@@@  ◉  @@@@@@@@@@@@  ◉  @@@@@@◉@@@@@@%#*+:
+                             ·+#%@@@@  (◉)  @@@@@@@@@  (◉)  @@@@@@@@@@@@@@@%#*;
+                             :*%@@@@@       @@@@@@@@@@      @@@@@@@@@@@@@@@%#*+·
+                             ;#%@@@@@@@@@@@@@@◉@@@@@@@@@@@@@@@@@@@@◉@@@@@@@%#*;
+                             +#%@@@@@  ◉  @@@@@@@@@@@@@@  ◉  @@@@@@@@@@@@@%##*+:
+                             *%@@@@  (◉)  @@@@@@@@@@@  (◉)  @@@@@@@◉@@@@@@@%#*;·
+                             #%@@@@@      @@@@@@@@@@@@      @@@@@@@@@@@@@@@%#*+:
+                             %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#*;
+                             %@@@@@  ◉  @@@@◉@@@@@@@@@@@  ◉  @@@@@@@@@@@@@@%#*+·
+                             %@@@  (◉)  @@@@@@@@@@@@@  (◉)  @@@@@◉@@@@@@@@@%#*;
+                             %@@@@      @@@@@@@@@@@@@@@     @@@@@@@@@@@@@@@@%#+:
+                             #%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#*;
+                             +%@@@@  ◉  @@@@@@◉@@@@@@@@  ◉  @@@@@@@@@@@@@@@%#*+·
+                             ;%@  (◉)  @@@@@@@@@@@@@  (◉)  @@@@@@◉@@@@@@@@%##*;
+                             ·#@@      @@@@@@@@@@@@@@      @@@@@@@@@@@@@@@@@%#+:
+                              +%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#*;
+                              ;%@@@  ◉  @@@@@◉@@@@@@@@  ◉  @@@@@@@@@@@@@@@@@%*+·
+                              ·#@  (◉)  @@@@@@@@@@  (◉)  @@@@@@@@◉@@@@@@@@@%#*;
+                               +%@      @@@@@@@@@@@      @@@@@@@@@@@@@@@@@@%#+:
+                               ;%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#*;
+                               ·#%@@  ◉  @@@@@@@@@@@@  ◉  @@@@@@@@@@@@@@@@%#*+·
+                                +%  (◉)  @@@@@◉@@  (◉)  @@@@@@@◉@@@@@@@@@@%#*;
+                                ;%@      @@@@@@@@@      @@@@@@@@@@@@@@@@@@@#+:
+                                ·#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#*;
+                                 +%@@  ◉  @@@@@@@@  ◉  @@@@@@@@@@@@@@@@@@%#*+·
+                                 ·#  (◉)  @@@@@  (◉)  @@@@@@◉@@@@@@@@@@@%#*;·
+                                  ;%      @@@@@@      @@@@@@@@@@@@@@@@@@@#+:
+                                  ·#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#*;
+                                   +%@@  ◉  @@@@  ◉  @@@@@@@@@@@@@@@@@@@#*+·
+                                   ·#  (◉)     (◉)  @@@@@@◉@@@@@@@@@@@@#*;
+                                    ;%@          @@@@@@@@@@@@@@@@@@@@@@#+:
+                                    ·+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#*;
+                                     :*%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*+·
+                                      ;#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+:
+                                      ·+#%@@@@@@@@@@@@@@@@@@@@@@@@@@@@*;
+                                       :*#%@@@@@@@@@@@@@@@@@@@@@@@@@@+:
+                                        ;+#%@@@@@@@@@@@@@@@@@@@@@@@@*;
+                                        ·:+#%@@@@@@@@@@@@@@@@@@@@@@+:
+                                         ·;+#%@@@@@@@@@@@@@@@@@@@@*;
+                                          ·:+*#%@@@@@@@@@@@@@@@@%+:
+                                           ·:;+*#%@@@@@@@@@@@@%*;·
+                                            ··:;+*##%%@@@@%%#*+:·
+                                              ··::;++**##**+;:··
+                                                 ···::::···
+`;
 </script>
 
 <svelte:head>
@@ -37,20 +76,9 @@
 </svelte:head>
 
 <div class="page">
-	<!-- Background Eye System -->
-	<div class="eye-system" aria-hidden="true">
-		<!-- Base eye layer (grayscale) -->
-		<div class="eye-container">
-			{#if mounted}
-				<pre class="eye-text">{eyeText}</pre>
-			{/if}
-			<!-- Iris color overlay - positioned via CSS -->
-			<div class="iris-glow"></div>
-		</div>
-
-		<!-- Eyelids for blink animation -->
-		<div class="eyelid eyelid-top"></div>
-		<div class="eyelid eyelid-bottom"></div>
+	<!-- Argus ASCII Art Background -->
+	<div class="argus-container" aria-hidden="true">
+		<pre class="argus-art">{ARGUS_ART}</pre>
 	</div>
 
 	<!-- Depth overlays -->
@@ -140,119 +168,30 @@
 		overflow: hidden;
 	}
 
-	/* ===== EYE SYSTEM ===== */
-	.eye-system {
+	/* ===== ARGUS ASCII ART ===== */
+	.argus-container {
 		position: fixed;
-		inset: 0;
+		top: 0;
+		right: -5%;
+		bottom: 0;
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: flex-end;
 		z-index: 1;
 		pointer-events: none;
+		overflow: hidden;
 	}
 
-	.eye-container {
-		position: relative;
-		opacity: 0.15;
-		animation: eye-look 12s ease-in-out infinite;
-	}
-
-	@keyframes eye-look {
-		0%, 100% {
-			transform: translate(0, 0) scale(1);
-		}
-		20% {
-			transform: translate(15px, -8px) scale(1.01);
-		}
-		40% {
-			transform: translate(-10px, 5px) scale(0.99);
-		}
-		60% {
-			transform: translate(8px, 10px) scale(1);
-		}
-		80% {
-			transform: translate(-12px, -5px) scale(1.01);
-		}
-	}
-
-	.eye-text {
+	.argus-art {
 		font-family: 'JetBrains Mono', monospace;
-		font-size: clamp(0.32rem, 0.85vw, 0.6rem);
-		line-height: 1.0;
+		font-size: clamp(0.4rem, 0.65vw, 0.6rem);
+		line-height: 1.15;
 		letter-spacing: 0.02em;
-		color: #444;
+		color: var(--accent);
 		white-space: pre;
 		user-select: none;
-	}
-
-	/* Iris glow - radial gradient overlay */
-	.iris-glow {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: 25%;
-		height: 50%;
-		transform: translate(-50%, -50%);
-		background: radial-gradient(
-			ellipse 100% 100% at 50% 50%,
-			var(--accent-glow) 0%,
-			var(--accent-glow) 30%,
-			transparent 70%
-		);
-		filter: blur(8px);
-		mix-blend-mode: screen;
-		animation: iris-pulse 4s ease-in-out infinite;
-	}
-
-	@keyframes iris-pulse {
-		0%, 100% {
-			opacity: 0.6;
-			transform: translate(-50%, -50%) scale(1);
-		}
-		50% {
-			opacity: 1;
-			transform: translate(-50%, -50%) scale(1.1);
-		}
-	}
-
-	/* Eyelids for blinking */
-	.eyelid {
-		position: absolute;
-		left: 0;
-		right: 0;
-		height: 50%;
-		background: var(--bg);
-		z-index: 2;
-	}
-
-	.eyelid-top {
-		top: 0;
-		transform-origin: top center;
-		animation: blink-top 6s ease-in-out infinite;
-	}
-
-	.eyelid-bottom {
-		bottom: 0;
-		transform-origin: bottom center;
-		animation: blink-bottom 6s ease-in-out infinite;
-	}
-
-	@keyframes blink-top {
-		0%, 42%, 48%, 100% {
-			transform: scaleY(0);
-		}
-		45% {
-			transform: scaleY(1);
-		}
-	}
-
-	@keyframes blink-bottom {
-		0%, 42%, 48%, 100% {
-			transform: scaleY(0);
-		}
-		45% {
-			transform: scaleY(1);
-		}
+		opacity: 0.2;
+		text-shadow: 0 0 30px var(--accent-glow);
 	}
 
 	/* ===== OVERLAYS ===== */
