@@ -305,79 +305,82 @@ const FlickeringGrid: React.FC<FlickeringGridProps> = ({
             const irisDistance = getIrisDistance(x, y, centerX, centerY, irisRadius);
             const pupilDistance = getPupilDistance(x, y, centerX, centerY, pupilRadius);
 
+            // Subtlety multiplier - keeps everything very faint
+            const subtlety = 0.25;
+
             if (!inEye) {
-              // Outside the eye - very dim ambient
-              opacity = opacity * 0.15;
+              // Outside the eye - barely visible ambient
+              opacity = opacity * 0.08;
             } else if (pupilDistance < 1) {
-              // Inside pupil - deep black with subtle variation
+              // Inside pupil - subtle dark with faint variation
               const highlightIntensity = getCornealHighlightIntensity(x, y, centerX, centerY, irisRadius);
               const secondaryHighlight = getSecondaryHighlight(x, y, centerX, centerY, irisRadius);
 
               if (highlightIntensity > 0.3) {
-                // Bright corneal reflection
-                opacity = 0.95 + highlightIntensity * 0.05;
+                // Faint corneal reflection
+                opacity = (0.3 + highlightIntensity * 0.15) * subtlety;
               } else if (secondaryHighlight > 0.2) {
-                opacity = 0.7 + secondaryHighlight * 0.3;
+                opacity = (0.25 + secondaryHighlight * 0.1) * subtlety;
               } else {
-                // Deep pupil black
-                opacity = 0.85 + (1 - pupilDistance) * 0.1 + Math.random() * 0.02;
+                // Subtle pupil
+                opacity = (0.35 + (1 - pupilDistance) * 0.05 + Math.random() * 0.02) * subtlety;
               }
             } else if (irisDistance < 1) {
-              // Inside iris - detailed texture
+              // Inside iris - very subtle texture
               const radialPattern = getIrisRadialPattern(x, y, centerX, centerY, time);
               const ringPattern = getIrisRingPattern(irisDistance, time);
               const limbalRing = getLimbalRingIntensity(irisDistance);
               const highlightIntensity = getCornealHighlightIntensity(x, y, centerX, centerY, irisRadius);
 
-              // Base iris opacity varies with distance from center
-              let irisOpacity = 0.45 + (1 - irisDistance) * 0.15;
+              // Base iris opacity - very faint
+              let irisOpacity = 0.2 + (1 - irisDistance) * 0.08;
 
-              // Add radial striations
-              irisOpacity += (radialPattern - 0.5) * 0.2;
+              // Add subtle radial striations
+              irisOpacity += (radialPattern - 0.5) * 0.08;
 
               // Add ring patterns
-              irisOpacity *= ringPattern;
+              irisOpacity *= (ringPattern * 0.3 + 0.7);
 
-              // Darken the limbal ring
-              irisOpacity += limbalRing * 0.25;
+              // Subtle limbal ring
+              irisOpacity += limbalRing * 0.1;
 
-              // Add highlight reflection on top
+              // Faint highlight reflection
               if (highlightIntensity > 0) {
-                irisOpacity = irisOpacity * (1 - highlightIntensity * 0.7) + highlightIntensity * 0.95;
+                irisOpacity = irisOpacity * (1 - highlightIntensity * 0.3) + highlightIntensity * 0.35;
               }
 
               // Subtle flicker
-              irisOpacity += (opacity - 0.5) * 0.08;
+              irisOpacity += (opacity - 0.5) * 0.03;
 
-              opacity = Math.min(0.95, Math.max(0.25, irisOpacity));
+              opacity = Math.min(0.4, Math.max(0.08, irisOpacity)) * subtlety;
             } else {
-              // Sclera (white of eye)
+              // Sclera (white of eye) - very faint
               const eyeOuterDist = getEyeOuterDistance(x, y, centerX, centerY, eyeWidth, eyeHeight);
               const eyelidShadow = getEyelidShadow(y, centerY, eyeHeight);
               const cornerShadow = getInnerCornerShadow(x, y, centerX, centerY, eyeWidth);
 
-              // Base sclera - brighter in center, darker at edges
-              let scleraOpacity = 0.35 - (eyeOuterDist - 1) * 0.4;
+              // Base sclera - very subtle
+              let scleraOpacity = 0.15 - (eyeOuterDist - 1) * 0.15;
 
-              // Add shadows
-              scleraOpacity += eyelidShadow;
-              scleraOpacity += cornerShadow;
+              // Add faint shadows
+              scleraOpacity += eyelidShadow * 0.4;
+              scleraOpacity += cornerShadow * 0.4;
 
               // Gradient darkening near iris
               if (irisDistance < 1.3) {
-                scleraOpacity += (1.3 - irisDistance) * 0.15;
+                scleraOpacity += (1.3 - irisDistance) * 0.06;
               }
 
-              // Subtle veins/texture near edges
+              // Very subtle veins/texture near edges
               if (eyeOuterDist > 0.7) {
-                const veinNoise = Math.sin(x * 0.3 + y * 0.2 + time * 0.0001) * 0.05;
+                const veinNoise = Math.sin(x * 0.3 + y * 0.2 + time * 0.0001) * 0.02;
                 scleraOpacity += veinNoise;
               }
 
               // Flicker
-              scleraOpacity += (opacity - 0.5) * 0.05;
+              scleraOpacity += (opacity - 0.5) * 0.02;
 
-              opacity = Math.min(0.6, Math.max(0.1, scleraOpacity));
+              opacity = Math.min(0.2, Math.max(0.04, scleraOpacity)) * subtlety;
             }
           }
 
