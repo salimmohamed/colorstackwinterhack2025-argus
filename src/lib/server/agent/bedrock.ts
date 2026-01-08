@@ -11,7 +11,7 @@ import {
 	type ToolConfiguration,
 	type ToolResultBlock,
 } from "@aws-sdk/client-bedrock-runtime";
-import { env } from "$env/dynamic/private";
+// Environment variables accessed via process.env in Next.js
 import type { Tool } from "./types";
 
 export interface BedrockConfig {
@@ -112,7 +112,7 @@ export class BedrockClient {
  * Create a Bedrock client
  */
 export function createBedrockClient(config?: Partial<BedrockConfig>) {
-	const region = config?.region || env.AWS_REGION || "us-east-1";
+	const region = config?.region || process.env.AWS_REGION || "us-east-1";
 
 	return new BedrockClient({
 		region,

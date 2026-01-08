@@ -14,11 +14,11 @@ crons.interval(
 );
 
 /**
- * Sync market data from Polymarket API every hour
+ * Sync market data from Polymarket API every 30 minutes
  */
 crons.interval(
 	"sync-markets",
-	{ hours: 1 },
+	{ minutes: 30 },
 	internal.markets.syncFromPolymarket,
 );
 
