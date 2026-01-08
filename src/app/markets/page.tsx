@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 function formatVolume(vol: number) {
   if (vol >= 1000000) return `$${(vol / 1000000).toFixed(1)}M`;
@@ -20,10 +21,25 @@ function formatTime(timestamp: number) {
   return `${days}d ago`;
 }
 
+function formatPrice(price: number): string {
+  if (price === undefined || price === null || isNaN(price) || !isFinite(price)) {
+    return "0%";
+  }
+  return `${(price * 100).toFixed(0)}%`;
+}
+
+const SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
 export default function MarketsPage() {
   const markets = useQuery(api.markets.listActive, {});
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  async function syncMarkets() {
+  const syncMarkets = useCallback(async () => {
+    if (isSyncing) return;
+
+    setIsSyncing(true);
     try {
       const res = await fetch("/api/markets/sync", {
         method: "POST",
@@ -32,10 +48,28 @@ export default function MarketsPage() {
       });
       const data = await res.json();
       console.log("Sync result:", data);
+      setLastSyncTime(Date.now());
     } catch (e) {
       console.error("Sync failed:", e);
+    } finally {
+      setIsSyncing(false);
     }
-  }
+  }, [isSyncing]);
+
+  // Auto-sync every 30 minutes
+  useEffect(() => {
+    // Start the interval
+    syncIntervalRef.current = setInterval(() => {
+      console.log("[Auto-sync] Triggering market sync...");
+      syncMarkets();
+    }, SYNC_INTERVAL_MS);
+
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    };
+  }, [syncMarkets]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-8">
@@ -55,9 +89,15 @@ export default function MarketsPage() {
           </div>
           <button
             onClick={syncMarkets}
-            className="flex items-center gap-2 px-4 py-2 bg-transparent border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_15px_rgba(245,158,11,0.15)] transition-all"
+            disabled={isSyncing}
+            className={`flex items-center gap-2 px-4 py-2 bg-transparent border border-[#252525] rounded text-[#888] text-xs transition-all ${
+              isSyncing
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_15px_rgba(245,158,11,0.15)]"
+            }`}
           >
-            <span>↻</span> Sync Markets
+            <span className={isSyncing ? "animate-spin" : ""}>↻</span>
+            {isSyncing ? "Syncing..." : "Sync Markets"}
           </button>
         </header>
 
@@ -115,13 +155,13 @@ export default function MarketsPage() {
                         </span>
                       </div>
                       <span className={`text-sm font-bold z-10 ${i === 0 ? "text-[var(--accent)]" : "text-[#888]"}`}>
-                        {(outcome.price * 100).toFixed(0)}%
+                        {formatPrice(outcome.price)}
                       </span>
                       <div
                         className={`absolute left-0 top-0 bottom-0 ${
                           i === 0 ? "bg-[rgba(245,158,11,0.05)]" : "bg-[rgba(255,255,255,0.02)]"
                         }`}
-                        style={{ width: `${outcome.price * 100}%` }}
+                        style={{ width: `${isNaN(outcome.price) ? 0 : outcome.price * 100}%` }}
                       />
                     </div>
                   ))}

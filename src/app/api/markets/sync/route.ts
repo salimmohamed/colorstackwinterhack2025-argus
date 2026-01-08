@@ -53,12 +53,26 @@ function convertEventToConvexMarket(event: GammaEvent) {
   const realMarkets = event.markets.filter((m) => !isPlaceholderMarket(m));
 
   const outcomes = realMarkets.map((market) => {
-    let price = 0.5;
+    let price = 0;
     try {
-      const prices = market.outcomePrices || [];
-      price = parseFloat(prices[0] || "0.5");
-    } catch {
-      // Use default
+      // outcomePrices is a JSON string like "[\"0.18\", \"0.82\"]", need to parse it
+      let prices: string[] = [];
+      if (typeof market.outcomePrices === "string") {
+        prices = JSON.parse(market.outcomePrices);
+      } else if (Array.isArray(market.outcomePrices)) {
+        prices = market.outcomePrices;
+      }
+
+      const priceStr = prices[0];
+      if (priceStr && priceStr.trim() !== "") {
+        const parsed = parseFloat(priceStr);
+        // Only use if it's a valid number between 0 and 1
+        if (!isNaN(parsed) && isFinite(parsed) && parsed >= 0 && parsed <= 1) {
+          price = parsed;
+        }
+      }
+    } catch (e) {
+      console.log(`[Sync] Failed to parse price for market ${market.slug}:`, e);
     }
 
     const name = extractCandidateName(market);

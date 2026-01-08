@@ -12,8 +12,8 @@ export interface GammaMarket {
 	slug: string | null;
 	category: string | null;
 	description: string | null;
-	outcomePrices: string[];
-	outcomes: string[];
+	outcomePrices: string | string[]; // Can be JSON string or array
+	outcomes: string | string[]; // Can be JSON string or array
 	volume: string | null;
 	volumeNum: number | null;
 	volume24hr: number | null;
