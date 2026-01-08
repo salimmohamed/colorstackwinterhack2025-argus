@@ -20,7 +20,31 @@ interface FlickeringGridProps {
   maskPattern?: "eye" | "none";
 }
 
-// Eye shape path functions
+// ===== DETAILED EYE GEOMETRY =====
+
+// Outer eye shape (almond) - using bezier-like curves
+function getEyeOuterDistance(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  eyeWidth: number,
+  eyeHeight: number
+): number {
+  const nx = (x - centerX) / (eyeWidth / 2);
+  const ny = (y - centerY) / (eyeHeight / 2);
+
+  // Almond shape: tapers at corners
+  const cornerTaper = Math.pow(Math.abs(nx), 2.5);
+  const eyeCurve = (1 - cornerTaper) * Math.sqrt(1 - Math.min(1, nx * nx));
+
+  // Asymmetric: upper lid slightly higher
+  const upperLidOffset = ny < 0 ? 0.15 : 0;
+  const adjustedEyeCurve = eyeCurve * (1 + upperLidOffset);
+
+  return Math.abs(ny) / Math.max(0.01, adjustedEyeCurve);
+}
+
 function isInsideEye(
   x: number,
   y: number,
@@ -29,38 +53,154 @@ function isInsideEye(
   eyeWidth: number,
   eyeHeight: number
 ): boolean {
-  // Normalize coordinates relative to center
-  const nx = (x - centerX) / (eyeWidth / 2);
-  const ny = (y - centerY) / (eyeHeight / 2);
-
-  // Eye almond shape using parametric equation
-  // Upper and lower curves of an eye shape
-  const eyeShape = Math.abs(ny) <= Math.pow(1 - nx * nx, 0.5) * 0.6;
-  return Math.abs(nx) <= 1 && eyeShape;
+  return getEyeOuterDistance(x, y, centerX, centerY, eyeWidth, eyeHeight) <= 1;
 }
 
-function isInsidePupil(
-  x: number,
-  y: number,
-  centerX: number,
-  centerY: number,
-  pupilRadius: number
-): boolean {
-  const dx = x - centerX;
-  const dy = y - centerY;
-  return dx * dx + dy * dy <= pupilRadius * pupilRadius;
-}
-
-function isInsideIris(
+// Iris detail: returns 0-1 where 0 is center, 1 is edge
+function getIrisDistance(
   x: number,
   y: number,
   centerX: number,
   centerY: number,
   irisRadius: number
-): boolean {
+): number {
   const dx = x - centerX;
   const dy = y - centerY;
-  return dx * dx + dy * dy <= irisRadius * irisRadius;
+  return Math.sqrt(dx * dx + dy * dy) / irisRadius;
+}
+
+// Pupil with subtle oval shape
+function getPupilDistance(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  pupilRadius: number
+): number {
+  const dx = x - centerX;
+  const dy = (y - centerY) * 1.1; // Slightly oval
+  return Math.sqrt(dx * dx + dy * dy) / pupilRadius;
+}
+
+// Corneal highlight (that bright reflection spot)
+function getCornealHighlightIntensity(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  irisRadius: number
+): number {
+  // Highlight is offset up and to the right
+  const highlightX = centerX + irisRadius * 0.3;
+  const highlightY = centerY - irisRadius * 0.35;
+  const highlightRadius = irisRadius * 0.18;
+
+  const dx = x - highlightX;
+  const dy = y - highlightY;
+  const dist = Math.sqrt(dx * dx + dy * dy) / highlightRadius;
+
+  if (dist < 1) {
+    return Math.pow(1 - dist, 2); // Soft falloff
+  }
+  return 0;
+}
+
+// Secondary smaller highlight
+function getSecondaryHighlight(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  irisRadius: number
+): number {
+  const highlightX = centerX - irisRadius * 0.2;
+  const highlightY = centerY - irisRadius * 0.25;
+  const highlightRadius = irisRadius * 0.08;
+
+  const dx = x - highlightX;
+  const dy = y - highlightY;
+  const dist = Math.sqrt(dx * dx + dy * dy) / highlightRadius;
+
+  return dist < 1 ? Math.pow(1 - dist, 1.5) * 0.5 : 0;
+}
+
+// Iris radial pattern (like the striations in real irises)
+function getIrisRadialPattern(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  time: number
+): number {
+  const dx = x - centerX;
+  const dy = y - centerY;
+  const angle = Math.atan2(dy, dx);
+
+  // Multiple frequency patterns for realistic iris texture
+  const pattern1 = Math.sin(angle * 24 + time * 0.0005) * 0.5 + 0.5;
+  const pattern2 = Math.sin(angle * 36 - time * 0.0003) * 0.5 + 0.5;
+  const pattern3 = Math.sin(angle * 12 + time * 0.0002) * 0.5 + 0.5;
+
+  return (pattern1 * 0.4 + pattern2 * 0.35 + pattern3 * 0.25);
+}
+
+// Iris concentric rings (collarette pattern)
+function getIrisRingPattern(
+  distance: number,
+  time: number
+): number {
+  // The collarette is a distinct ring about 1/3 from the pupil
+  const collarettePos = 0.4;
+  const collaretteWidth = 0.15;
+  const collaretteDist = Math.abs(distance - collarettePos) / collaretteWidth;
+  const collarette = collaretteDist < 1 ? (1 - collaretteDist) * 0.3 : 0;
+
+  // Subtle concentric ripples
+  const ripples = Math.sin(distance * 15 + time * 0.0001) * 0.1 + 0.9;
+
+  return ripples + collarette;
+}
+
+// Limbal ring (dark ring around iris edge)
+function getLimbalRingIntensity(irisDistance: number): number {
+  if (irisDistance > 0.85 && irisDistance < 1.05) {
+    const ringCenter = 0.95;
+    const ringWidth = 0.1;
+    return 1 - Math.abs(irisDistance - ringCenter) / ringWidth;
+  }
+  return 0;
+}
+
+// Eyelid shadow (gradient at top of eye)
+function getEyelidShadow(
+  y: number,
+  centerY: number,
+  eyeHeight: number
+): number {
+  const ny = (y - centerY) / (eyeHeight / 2);
+  if (ny < -0.3) {
+    return Math.pow(Math.abs(ny + 0.3) / 0.7, 0.8) * 0.4;
+  }
+  return 0;
+}
+
+// Inner corner shadow (caruncle area)
+function getInnerCornerShadow(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  eyeWidth: number
+): number {
+  const nx = (x - centerX) / (eyeWidth / 2);
+  const ny = (y - centerY) / (eyeWidth / 4);
+
+  // Shadow on the inner corner (left side)
+  if (nx < -0.7) {
+    const cornerDist = Math.sqrt(Math.pow(nx + 0.85, 2) + ny * ny * 0.5);
+    return Math.max(0, (0.3 - cornerDist) / 0.3) * 0.3;
+  }
+  return 0;
 }
 
 const FlickeringGrid: React.FC<FlickeringGridProps> = ({
@@ -135,19 +275,24 @@ const FlickeringGrid: React.FC<FlickeringGridProps> = ({
       cols: number,
       rows: number,
       squares: Float32Array,
-      dpr: number
+      dpr: number,
+      time: number
     ) => {
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = "transparent";
       ctx.fillRect(0, 0, width, height);
 
-      // Eye pattern calculations
-      const centerX = (cols * (squareSize + gridGap)) / 2;
-      const centerY = (rows * (squareSize + gridGap)) / 2;
-      const eyeWidth = cols * (squareSize + gridGap) * 0.7;
-      const eyeHeight = rows * (squareSize + gridGap) * 0.4;
-      const irisRadius = Math.min(eyeWidth, eyeHeight) * 0.25;
-      const pupilRadius = irisRadius * 0.4;
+      // Eye geometry calculations
+      const gridWidth = cols * (squareSize + gridGap);
+      const gridHeight = rows * (squareSize + gridGap);
+      const centerX = gridWidth / 2;
+      const centerY = gridHeight / 2;
+
+      // Eye proportions
+      const eyeWidth = gridWidth * 0.85;
+      const eyeHeight = gridHeight * 0.5;
+      const irisRadius = Math.min(eyeWidth, eyeHeight) * 0.38;
+      const pupilRadius = irisRadius * 0.38;
 
       for (let i = 0; i < cols; i++) {
         for (let j = 0; j < rows; j++) {
@@ -157,21 +302,82 @@ const FlickeringGrid: React.FC<FlickeringGridProps> = ({
 
           if (maskPattern === "eye") {
             const inEye = isInsideEye(x, y, centerX, centerY, eyeWidth, eyeHeight);
-            const inIris = isInsideIris(x, y, centerX, centerY, irisRadius);
-            const inPupil = isInsidePupil(x, y, centerX, centerY, pupilRadius);
+            const irisDistance = getIrisDistance(x, y, centerX, centerY, irisRadius);
+            const pupilDistance = getPupilDistance(x, y, centerX, centerY, pupilRadius);
 
-            if (inPupil) {
-              // Pupil: high contrast, minimal flicker
-              opacity = 0.9 + Math.random() * 0.1;
-            } else if (inIris) {
-              // Iris: medium-high opacity with some flicker
-              opacity = Math.min(opacity * 2.5, 0.8);
-            } else if (inEye) {
-              // Inside eye (sclera): medium opacity
-              opacity = Math.min(opacity * 1.8, 0.6);
+            if (!inEye) {
+              // Outside the eye - very dim ambient
+              opacity = opacity * 0.15;
+            } else if (pupilDistance < 1) {
+              // Inside pupil - deep black with subtle variation
+              const highlightIntensity = getCornealHighlightIntensity(x, y, centerX, centerY, irisRadius);
+              const secondaryHighlight = getSecondaryHighlight(x, y, centerX, centerY, irisRadius);
+
+              if (highlightIntensity > 0.3) {
+                // Bright corneal reflection
+                opacity = 0.95 + highlightIntensity * 0.05;
+              } else if (secondaryHighlight > 0.2) {
+                opacity = 0.7 + secondaryHighlight * 0.3;
+              } else {
+                // Deep pupil black
+                opacity = 0.85 + (1 - pupilDistance) * 0.1 + Math.random() * 0.02;
+              }
+            } else if (irisDistance < 1) {
+              // Inside iris - detailed texture
+              const radialPattern = getIrisRadialPattern(x, y, centerX, centerY, time);
+              const ringPattern = getIrisRingPattern(irisDistance, time);
+              const limbalRing = getLimbalRingIntensity(irisDistance);
+              const highlightIntensity = getCornealHighlightIntensity(x, y, centerX, centerY, irisRadius);
+
+              // Base iris opacity varies with distance from center
+              let irisOpacity = 0.45 + (1 - irisDistance) * 0.15;
+
+              // Add radial striations
+              irisOpacity += (radialPattern - 0.5) * 0.2;
+
+              // Add ring patterns
+              irisOpacity *= ringPattern;
+
+              // Darken the limbal ring
+              irisOpacity += limbalRing * 0.25;
+
+              // Add highlight reflection on top
+              if (highlightIntensity > 0) {
+                irisOpacity = irisOpacity * (1 - highlightIntensity * 0.7) + highlightIntensity * 0.95;
+              }
+
+              // Subtle flicker
+              irisOpacity += (opacity - 0.5) * 0.08;
+
+              opacity = Math.min(0.95, Math.max(0.25, irisOpacity));
             } else {
-              // Outside eye: very dim
-              opacity = opacity * 0.3;
+              // Sclera (white of eye)
+              const eyeOuterDist = getEyeOuterDistance(x, y, centerX, centerY, eyeWidth, eyeHeight);
+              const eyelidShadow = getEyelidShadow(y, centerY, eyeHeight);
+              const cornerShadow = getInnerCornerShadow(x, y, centerX, centerY, eyeWidth);
+
+              // Base sclera - brighter in center, darker at edges
+              let scleraOpacity = 0.35 - (eyeOuterDist - 1) * 0.4;
+
+              // Add shadows
+              scleraOpacity += eyelidShadow;
+              scleraOpacity += cornerShadow;
+
+              // Gradient darkening near iris
+              if (irisDistance < 1.3) {
+                scleraOpacity += (1.3 - irisDistance) * 0.15;
+              }
+
+              // Subtle veins/texture near edges
+              if (eyeOuterDist > 0.7) {
+                const veinNoise = Math.sin(x * 0.3 + y * 0.2 + time * 0.0001) * 0.05;
+                scleraOpacity += veinNoise;
+              }
+
+              // Flicker
+              scleraOpacity += (opacity - 0.5) * 0.05;
+
+              opacity = Math.min(0.6, Math.max(0.1, scleraOpacity));
             }
           }
 
@@ -223,7 +429,8 @@ const FlickeringGrid: React.FC<FlickeringGridProps> = ({
         gridParams.cols,
         gridParams.rows,
         gridParams.squares,
-        gridParams.dpr
+        gridParams.dpr,
+        time
       );
       animationFrameId = requestAnimationFrame(animate);
     };

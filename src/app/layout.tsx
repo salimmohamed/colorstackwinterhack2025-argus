@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${jetbrainsMono.variable} ${instrumentSerif.variable} antialiased`}>
+      <body className={`${jetbrainsMono.variable} ${instrumentSerif.variable} antialiased`} suppressHydrationWarning>
         <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
     </html>
