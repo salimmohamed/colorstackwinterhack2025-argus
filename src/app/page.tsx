@@ -14,12 +14,24 @@ export default function Home() {
       <div className="w-[40%] min-h-screen relative z-10 bg-[var(--background)]">
         <div className="flex flex-col min-h-screen p-12 pr-16">
           <header className="mb-8 animate-fadeSlideUp" style={{ animationDelay: "0s" }}>
-            <nav>
+            <nav className="flex gap-6">
               <Link
                 href="/markets"
                 className="text-[var(--text-dim)] text-xs tracking-[0.15em] uppercase py-2 border-b border-transparent hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all"
               >
                 Markets
+              </Link>
+              <Link
+                href="/suspects"
+                className="text-[var(--text-dim)] text-xs tracking-[0.15em] uppercase py-2 border-b border-transparent hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all"
+              >
+                Suspects
+              </Link>
+              <Link
+                href="/alerts"
+                className="text-[var(--text-dim)] text-xs tracking-[0.15em] uppercase py-2 border-b border-transparent hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all"
+              >
+                Alerts
               </Link>
             </nav>
           </header>
