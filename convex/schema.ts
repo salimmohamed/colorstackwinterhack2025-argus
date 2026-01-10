@@ -19,6 +19,18 @@ export default defineSchema({
 			}),
 		),
 		lastSyncedAt: v.number(),
+		// Incremental analysis checkpoints
+		lastAnalyzedAt: v.optional(v.number()),
+		lastAnalyzedTradeTimestamp: v.optional(v.number()),
+		// Cached market context (refreshed hourly)
+		cachedContext: v.optional(
+			v.object({
+				avgTradeSize: v.number(),
+				totalVolume: v.number(),
+				totalHolders: v.number(),
+				cachedAt: v.number(),
+			}),
+		),
 	})
 		.index("by_polymarket_id", ["polymarketId"])
 		.index("by_category", ["category"])
@@ -31,7 +43,7 @@ export default defineSchema({
 		previousNames: v.array(v.string()),
 		firstSeenAt: v.number(),
 		createdAt: v.optional(v.number()),
-		accountAgeDays: v.optional(v.number()), // Calculated from firstSeenAt
+		accountAgeDays: v.optional(v.number()),
 		totalTrades: v.number(),
 		totalVolume: v.number(),
 		winCount: v.number(),
@@ -41,6 +53,20 @@ export default defineSchema({
 		flags: v.array(v.string()),
 		lastActivityAt: v.number(),
 		isFlagged: v.boolean(),
+		// Cached profile for cost optimization (refreshed when new activity detected)
+		lastAnalyzedAt: v.optional(v.number()),
+		cachedProfile: v.optional(
+			v.object({
+				profitLossUsd: v.number(),
+				avgTradeSize: v.number(),
+				uniqueMarkets: v.number(),
+				cachedAt: v.number(),
+			}),
+		),
+		// Skip re-analysis flag (already cleared or confirmed)
+		analysisStatus: v.optional(
+			v.union(v.literal("pending"), v.literal("cleared"), v.literal("confirmed")),
+		),
 	})
 		.index("by_address", ["address"])
 		.index("by_risk_score", ["riskScore"])
