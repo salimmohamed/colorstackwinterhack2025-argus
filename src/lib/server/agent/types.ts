@@ -84,10 +84,23 @@ export interface AccountData {
 	losses: number;
 	winRate: number;
 	profitLossUsd: number;
+	realizedProfit: number;
+	unrealizedProfit: number;
 
 	// Market Focus
 	marketCategories: string[];
 	politicalMarketExposure: number;
+
+	// Current positions
+	positions: Array<{
+		market: string;
+		outcome: string;
+		size: number;
+		currentValue: number;
+		initialValue: number;
+		realizedPnl: number;
+		unrealizedPnl: number;
+	}>;
 
 	// Recent Activity
 	recentTrades: Array<{
@@ -131,6 +144,74 @@ export interface MarketActivityData {
 	uniqueTraders: number;
 	largeTradeCount: number;
 	averageTradeSize: number;
+
+	// Top traders by volume
+	topTraders?: Array<{
+		address: string;
+		volume: number;
+	}>;
+}
+
+// Market holders data
+export interface MarketHoldersData {
+	marketId: string;
+	totalHolders: number;
+	totalValue: number;
+	holders: Array<{
+		address: string;
+		amount: number;
+		percentOfMarket: number;
+	}>;
+	top5Concentration: number;
+	largestHolderPercent: number;
+}
+
+// Wallet positions data
+export interface WalletPositionsData {
+	address: string;
+	totalPositions: number;
+	totalValue: number;
+	totalRealizedPnl: number;
+	totalUnrealizedPnl: number;
+	uniqueMarkets: number;
+	positions: Array<{
+		market: string;
+		conditionId: string;
+		outcome: string;
+		size: number;
+		currentValue: number;
+		initialValue: number;
+		realizedPnl: number;
+		unrealizedPnl: number;
+		percentChange: number;
+	}>;
+	largestPosition: {
+		market: string;
+		value: number;
+		pnl: number;
+	} | null;
+}
+
+// Market comparison data
+export interface MarketComparisonData {
+	address: string;
+	marketId: string;
+	marketQuestion: string;
+	// Relative metrics
+	relativeBetSize: number;
+	marketDominance: number;
+	volumePercentile: number;
+	holderRank: number | null;
+	// Absolute context
+	traderVolume: number;
+	traderLargestTrade: number;
+	marketAverageTradeSize: number;
+	marketTotalVolume: number;
+	totalMarketTraders: number;
+	// Interpretation helpers
+	isWhale: boolean;
+	isDominant: boolean;
+	isTopTrader: boolean;
 }
 
 // Alert evidence for flagging
@@ -141,5 +222,7 @@ export interface AlertEvidence {
 	profitUsd?: number;
 	hoursBeforeEvent?: number;
 	nameChanges?: number;
+	marketDominance?: number;
+	relativeBetSize?: number;
 	[key: string]: unknown;
 }

@@ -56,6 +56,34 @@ export interface TradeRecord {
 	fee_rate_bps: string;
 }
 
+export interface Position {
+	asset: string;
+	conditionId: string;
+	curPrice: number;
+	currentValue: number;
+	initialValue: number;
+	percentChange: number;
+	outcomeIndex: number;
+	realizedPnl: number;
+	cashPnl: number;
+	title: string;
+	slug: string;
+	size: number;
+}
+
+export interface HolderData {
+	proxyWallet: string;
+	amount: number;
+	outcome: string;
+}
+
+export interface HolderResponse {
+	conditionId: string;
+	tokenId: string;
+	outcome: string;
+	holders: HolderData[];
+}
+
 export class DataApiClient {
 	private baseUrl: string;
 
@@ -125,7 +153,6 @@ export class DataApiClient {
 			limit: 500,
 		});
 
-		// Filter by minimum trade size if specified
 		if (minTradeSize) {
 			return activity.filter((a) => a.usdcSize >= minTradeSize);
 		}
@@ -139,7 +166,7 @@ export class DataApiClient {
 	async getLargeTrades(
 		marketId: string,
 		minSizeUsd = 5000,
-		hoursBack = 168, // 7 days
+		hoursBack = 168,
 	): Promise<ActivityRecord[]> {
 		const activity = await this.getMarketActivity(marketId, hoursBack);
 		return activity.filter((a) => a.usdcSize >= minSizeUsd);
@@ -181,6 +208,71 @@ export class DataApiClient {
 			lastTradeTimestamp: Math.max(...timestamps),
 			uniqueMarkets,
 		};
+	}
+
+	/**
+	 * Get user positions
+	 */
+	async getUserPositions(address: string): Promise<Position[]> {
+		const url = `${this.baseUrl}/positions?user=${address.toLowerCase()}`;
+		const response = await fetch(url);
+
+		if (!response.ok) {
+			throw new Error(`Data API error: ${response.status}`);
+		}
+
+		return response.json();
+	}
+
+	/**
+	 * Get market holders (position distribution)
+	 */
+	async getMarketHolders(conditionId: string): Promise<HolderResponse[]> {
+		const url = `${this.baseUrl}/holders?conditionId=${conditionId}`;
+		const response = await fetch(url);
+
+		if (!response.ok) {
+			throw new Error(`Data API error: ${response.status}`);
+		}
+
+		return response.json();
+	}
+
+	/**
+	 * Get first trade timestamp for an account
+	 */
+	async getAccountFirstTrade(address: string): Promise<number | null> {
+		const activity = await this.getActivity({
+			user: address.toLowerCase(),
+			type: "TRADE",
+			sortBy: "TIMESTAMP",
+			sortDirection: "ASC",
+			limit: 1,
+		});
+
+		if (activity.length === 0) return null;
+		return activity[0].timestamp;
+	}
+
+	/**
+	 * Get market trades (for market-level queries)
+	 */
+	async getMarketTrades(
+		conditionId: string,
+		options: { limit?: number; hoursBack?: number } = {},
+	): Promise<TradeRecord[]> {
+		const params = new URLSearchParams();
+		params.set("market", conditionId);
+		if (options.limit) params.set("limit", String(options.limit));
+
+		const url = `https://clob.polymarket.com/trades?${params}`;
+		const response = await fetch(url);
+
+		if (!response.ok) {
+			throw new Error(`CLOB API error: ${response.status}`);
+		}
+
+		return response.json();
 	}
 }
 
