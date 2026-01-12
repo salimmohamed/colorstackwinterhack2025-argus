@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { api } from "../../../convex/_generated/api";
 
 type Severity = "low" | "medium" | "high" | "critical";
 type Status = "new" | "investigating" | "confirmed" | "dismissed";
@@ -55,13 +55,19 @@ export default function AlertsPage() {
 
         <header className="flex justify-between items-start pb-6 border-b border-[#1a1a1a] mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-[#fafafa]">⚠ Detection Alerts</h1>
-            <p className="mt-2 text-sm text-[#666]">Suspicious trading patterns flagged by Argus</p>
+            <h1 className="text-2xl font-semibold text-[#fafafa]">
+              ⚠ Detection Alerts
+            </h1>
+            <p className="mt-2 text-sm text-[#666]">
+              Suspicious trading patterns flagged by Argus
+            </p>
           </div>
           <div className="flex gap-2">
             <select
               value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value as Severity | "")}
+              onChange={(e) =>
+                setSeverityFilter(e.target.value as Severity | "")
+              }
               className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
             >
               <option value="">All Severities</option>
@@ -87,13 +93,17 @@ export default function AlertsPage() {
         <div className="flex flex-col gap-3">
           {filteredAlerts === undefined ? (
             <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
-              <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
+              <span className="text-3xl text-[var(--accent)] animate-pulse">
+                ◉
+              </span>
               <p className="mt-4 text-sm text-[#666]">Loading alerts...</p>
             </div>
           ) : filteredAlerts.length === 0 ? (
             <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
               <span className="text-4xl text-[#333] block mb-4">◎</span>
-              <h3 className="text-base text-[#fafafa] mb-2">No alerts detected</h3>
+              <h3 className="text-base text-[#fafafa] mb-2">
+                No alerts detected
+              </h3>
               <p className="text-sm text-[#666]">
                 {severityFilter || statusFilter
                   ? "No alerts match the selected filters."
@@ -109,7 +119,9 @@ export default function AlertsPage() {
                 <div className="flex items-center gap-3 mb-3">
                   <span
                     className="px-2 py-1 rounded text-[0.65rem] font-bold uppercase tracking-wider text-white"
-                    style={{ backgroundColor: getSeverityColor(alert.severity) }}
+                    style={{
+                      backgroundColor: getSeverityColor(alert.severity),
+                    }}
                   >
                     {alert.severity}
                   </span>
@@ -121,23 +133,26 @@ export default function AlertsPage() {
                       alert.status === "new"
                         ? "bg-[rgba(59,130,246,0.15)] text-[#3b82f6]"
                         : alert.status === "investigating"
-                        ? "bg-[rgba(245,158,11,0.15)] text-[var(--accent)]"
-                        : alert.status === "confirmed"
-                        ? "bg-[rgba(239,68,68,0.15)] text-[#ef4444]"
-                        : "bg-[rgba(34,197,94,0.15)] text-[#22c55e]"
+                          ? "bg-[rgba(245,158,11,0.15)] text-[var(--accent)]"
+                          : alert.status === "confirmed"
+                            ? "bg-[rgba(239,68,68,0.15)] text-[#ef4444]"
+                            : "bg-[rgba(34,197,94,0.15)] text-[#22c55e]"
                     }`}
                   >
                     {alert.status}
                   </span>
                 </div>
-                <h3 className="text-base font-medium text-[#fafafa] mb-2">{alert.title}</h3>
+                <h3 className="text-base font-medium text-[#fafafa] mb-2">
+                  {alert.title}
+                </h3>
                 <p className="text-sm text-[#666] leading-relaxed mb-3">
                   {alert.evidence.reasoning.slice(0, 150)}...
                 </p>
                 <div className="flex justify-between items-center pt-3 border-t border-[#1a1a1a] text-xs text-[#444]">
                   <span className="font-mono">
                     <span className="text-[#333]">Account: </span>
-                    {alert.accountAddress.slice(0, 6)}...{alert.accountAddress.slice(-4)}
+                    {alert.accountAddress.slice(0, 6)}...
+                    {alert.accountAddress.slice(-4)}
                   </span>
                   <span>{formatTime(alert.createdAt)}</span>
                 </div>

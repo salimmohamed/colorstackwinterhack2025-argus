@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { api } from "../../../convex/_generated/api";
 
 type SortField = "riskScore" | "volume" | "winRate";
 
@@ -55,7 +55,9 @@ export default function AccountsPage() {
         </Link>
 
         <header className="flex justify-between items-center pb-6 border-b border-[#1a1a1a] mb-8">
-          <h1 className="text-2xl font-semibold text-[#fafafa]">Flagged Accounts</h1>
+          <h1 className="text-2xl font-semibold text-[#fafafa]">
+            Flagged Accounts
+          </h1>
           <select
             value={sortField}
             onChange={(e) => setSortField(e.target.value as SortField)}
@@ -69,14 +71,21 @@ export default function AccountsPage() {
 
         {sortedAccounts === undefined ? (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
-            <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
+            <span className="text-3xl text-[var(--accent)] animate-pulse">
+              ◉
+            </span>
             <p className="mt-4 text-sm text-[#666]">Loading accounts...</p>
           </div>
         ) : sortedAccounts.length === 0 ? (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
             <span className="text-4xl text-[#333] block mb-4">◎</span>
-            <h3 className="text-base text-[#fafafa] mb-2">No flagged accounts</h3>
-            <p className="text-sm text-[#666]">Accounts will appear here when the agent flags suspicious activity.</p>
+            <h3 className="text-base text-[#fafafa] mb-2">
+              No flagged accounts
+            </h3>
+            <p className="text-sm text-[#666]">
+              Accounts will appear here when the agent flags suspicious
+              activity.
+            </p>
           </div>
         ) : (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
@@ -97,9 +106,13 @@ export default function AccountsPage() {
                 className="grid grid-cols-[2fr_1fr_0.75fr_1fr_0.75fr_0.75fr] gap-4 px-6 py-4 items-center border-t border-[#1a1a1a] border-l-[3px] border-l-[#f44336] hover:bg-[#111] transition-colors cursor-pointer"
               >
                 <div className="flex flex-col gap-1">
-                  <span className="font-mono text-[#fafafa]">{shortenAddress(account.address)}</span>
+                  <span className="font-mono text-[#fafafa]">
+                    {shortenAddress(account.address)}
+                  </span>
                   {account.displayName && (
-                    <span className="text-xs text-[#666]">{account.displayName}</span>
+                    <span className="text-xs text-[#666]">
+                      {account.displayName}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -113,9 +126,15 @@ export default function AccountsPage() {
                   <span className="text-sm">{account.riskScore}</span>
                 </div>
                 <span className="text-sm">{account.totalTrades ?? 0}</span>
-                <span className="text-sm">{formatVolume(account.totalVolume ?? 0)}</span>
-                <span className="text-sm">{((account.winRate ?? 0) * 100).toFixed(0)}%</span>
-                <span className="text-sm">{account.accountAgeDays ?? "?"} days</span>
+                <span className="text-sm">
+                  {formatVolume(account.totalVolume ?? 0)}
+                </span>
+                <span className="text-sm">
+                  {((account.winRate ?? 0) * 100).toFixed(0)}%
+                </span>
+                <span className="text-sm">
+                  {account.accountAgeDays ?? "?"} days
+                </span>
               </div>
             ))}
           </div>

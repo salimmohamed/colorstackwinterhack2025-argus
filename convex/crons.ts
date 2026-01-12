@@ -8,27 +8,27 @@ const crons = cronJobs();
  * This is the scheduled monitoring that runs autonomously
  */
 crons.interval(
-	"monitor-markets",
-	{ minutes: 15 },
-	internal.agentRuns.triggerScheduledRun,
+  "monitor-markets",
+  { minutes: 15 },
+  internal.agentRuns.triggerScheduledRun,
 );
 
 /**
  * Sync market data from Polymarket API every 30 minutes
  */
 crons.interval(
-	"sync-markets",
-	{ minutes: 30 },
-	internal.markets.syncFromPolymarket,
+  "sync-markets",
+  { minutes: 30 },
+  internal.markets.syncFromPolymarket,
 );
 
 /**
  * Clean up old activity feed entries daily
  */
 crons.daily(
-	"cleanup-activity-feed",
-	{ hourUTC: 4, minuteUTC: 0 },
-	internal.activityFeed.cleanup,
+  "cleanup-activity-feed",
+  { hourUTC: 4, minuteUTC: 0 },
+  internal.activityFeed.cleanup,
 );
 
 export default crons;
