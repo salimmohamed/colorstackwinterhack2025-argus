@@ -8,41 +8,49 @@
  * 4. Early termination - stop when no suspicious activity found
  */
 
+import type { ContentBlock } from "@aws-sdk/client-bedrock-runtime";
 import {
-	createBedrockClient,
-	createToolResultContent,
-	isToolUse,
-	isTextBlock,
-	type BedrockMessage,
+  type BedrockMessage,
+  createBedrockClient,
+  createToolResultContent,
+  isTextBlock,
+  isToolUse,
 } from "./bedrock";
-import { executeOptimizedTool, getCacheStats, clearCaches } from "./executor-optimized";
+import {
+  clearCaches,
+  executeOptimizedTool,
+  getCacheStats,
+} from "./executor-optimized";
 import { SYSTEM_PROMPT_OPTIMIZED } from "./prompt-optimized";
 import { agentToolsOptimized } from "./tools-optimized";
-import type { ContentBlock } from "@aws-sdk/client-bedrock-runtime";
 
 export interface OptimizedAgentConfig {
-	maxIterations: number;
-	maxTokens: number;
-	modelId?: string;
-	region?: string;
-	// Checkpoints for incremental analysis
-	checkpoints?: Map<string, number>; // marketId -> lastAnalyzedTimestamp
+  maxIterations: number;
+  maxTokens: number;
+  modelId?: string;
+  region?: string;
+  // Checkpoints for incremental analysis
+  checkpoints?: Map<string, number>; // marketId -> lastAnalyzedTimestamp
 }
 
 export interface OptimizedAgentResult {
-	success: boolean;
-	iterations: number;
-	flagsCreated: number;
-	accountsAnalyzed: number;
-	tokensUsed: { input: number; output: number };
-	newCheckpoints: Map<string, number>;
-	cacheStats: { marketContexts: number; accounts: number; analyzedThisSession: number };
-	error?: string;
+  success: boolean;
+  iterations: number;
+  flagsCreated: number;
+  accountsAnalyzed: number;
+  tokensUsed: { input: number; output: number };
+  newCheckpoints: Map<string, number>;
+  cacheStats: {
+    marketContexts: number;
+    accounts: number;
+    analyzedThisSession: number;
+  };
+  error?: string;
 }
 
 const DEFAULT_CONFIG: OptimizedAgentConfig = {
-	maxIterations: 10, // Reduced from 20
-	maxTokens: 2048, // Reduced from 4096
+  maxIterations: 10, // Reduced from 20
+  maxTokens: 2048, // Reduced from 4096
 };
 
 /**
@@ -50,11 +58,11 @@ const DEFAULT_CONFIG: OptimizedAgentConfig = {
  * Instead of keeping full history, we keep a summary
  */
 function summarizeState(
-	analyzedAccounts: string[],
-	flaggedAccounts: string[],
-	currentFindings: string[],
+  analyzedAccounts: string[],
+  flaggedAccounts: string[],
+  currentFindings: string[],
 ): string {
-	return `## Current Session State
+  return `## Current Session State
 Analyzed: ${analyzedAccounts.length} accounts (${analyzedAccounts.slice(-5).join(", ")}${analyzedAccounts.length > 5 ? "..." : ""})
 Flagged: ${flaggedAccounts.length} accounts (${flaggedAccounts.join(", ") || "none yet"})
 Key findings: ${currentFindings.slice(-3).join("; ") || "none yet"}
@@ -66,198 +74,219 @@ Continue investigating or conclude if no more suspicious activity.`;
  * Run optimized agent loop
  */
 export async function runOptimizedAgentLoop(
-	marketIds: string[],
-	config: Partial<OptimizedAgentConfig> = {},
+  marketIds: string[],
+  config: Partial<OptimizedAgentConfig> = {},
 ): Promise<OptimizedAgentResult> {
-	const cfg = { ...DEFAULT_CONFIG, ...config };
+  const cfg = { ...DEFAULT_CONFIG, ...config };
 
-	const client = createBedrockClient({
-		region: cfg.region,
-		modelId: cfg.modelId,
-	});
+  const client = createBedrockClient({
+    region: cfg.region,
+    modelId: cfg.modelId,
+  });
 
-	// Clear caches for fresh run (or keep for incremental)
-	if (!cfg.checkpoints) {
-		clearCaches();
-	}
+  // Clear caches for fresh run (or keep for incremental)
+  if (!cfg.checkpoints) {
+    clearCaches();
+  }
 
-	let totalInputTokens = 0;
-	let totalOutputTokens = 0;
-	let flagsCreated = 0;
-	const analyzedAccounts: string[] = [];
-	const flaggedAccounts: string[] = [];
-	const currentFindings: string[] = [];
-	const newCheckpoints = new Map<string, number>();
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let flagsCreated = 0;
+  const analyzedAccounts: string[] = [];
+  const flaggedAccounts: string[] = [];
+  const currentFindings: string[] = [];
+  const newCheckpoints = new Map<string, number>();
 
-	// Build initial prompt with checkpoints
-	const checkpointInfo = cfg.checkpoints
-		? `\nINCREMENTAL MODE: Only analyze trades after these timestamps:\n${[...cfg.checkpoints.entries()].map(([m, t]) => `- ${m}: ${new Date(t).toISOString()}`).join("\n")}`
-		: "";
+  // Build initial prompt with checkpoints
+  const checkpointInfo = cfg.checkpoints
+    ? `\nINCREMENTAL MODE: Only analyze trades after these timestamps:\n${[...cfg.checkpoints.entries()].map(([m, t]) => `- ${m}: ${new Date(t).toISOString()}`).join("\n")}`
+    : "";
 
-	const taskPrompt = `Analyze these markets for insider trading: ${marketIds.join(", ")}${checkpointInfo}
+  const taskPrompt = `Analyze these markets for insider trading: ${marketIds.join(", ")}${checkpointInfo}
 
 Start by fetching market activity. Focus on large trades from new/suspicious accounts.
 Be efficient - skip accounts you've already analyzed.`;
 
-	// Sliding window: only keep last 2 exchanges
-	let recentMessages: BedrockMessage[] = [
-		{ role: "user", content: [{ text: taskPrompt }] },
-	];
+  // Sliding window: only keep last 2 exchanges
+  let recentMessages: BedrockMessage[] = [
+    { role: "user", content: [{ text: taskPrompt }] },
+  ];
 
-	let iterations = 0;
+  let iterations = 0;
 
-	try {
-		while (iterations < cfg.maxIterations) {
-			iterations++;
-			console.log(`[OptAgent] Iteration ${iterations}/${cfg.maxIterations}`);
+  try {
+    while (iterations < cfg.maxIterations) {
+      iterations++;
+      console.log(`[OptAgent] Iteration ${iterations}/${cfg.maxIterations}`);
 
-			// If we have findings, add summary to context
-			if (iterations > 1) {
-				const summary = summarizeState(analyzedAccounts, flaggedAccounts, currentFindings);
-				// Prepend summary to first message
-				recentMessages[0] = {
-					role: "user",
-					content: [{ text: `${summary}\n\n${taskPrompt}` }],
-				};
-			}
+      // If we have findings, add summary to context
+      if (iterations > 1) {
+        const summary = summarizeState(
+          analyzedAccounts,
+          flaggedAccounts,
+          currentFindings,
+        );
+        // Prepend summary to first message
+        recentMessages[0] = {
+          role: "user",
+          content: [{ text: `${summary}\n\n${taskPrompt}` }],
+        };
+      }
 
-			// Keep conversation manageable while preserving tool use cycles
-			// Bedrock requires: user, assistant(tool_use), user(tool_result) to stay together
-			if (recentMessages.length > 7) {
-				// Find safe slice point: after a user message (tool_result or regular response)
-				// Keep initial prompt + last 6 messages (3 complete exchanges)
-				const keptMessages = recentMessages.slice(-6);
-				// Verify first kept message after initial is a user message
-				if (keptMessages[0]?.role === 'assistant') {
-					// Broken pair - shift by 1 to start on user message
-					recentMessages = [recentMessages[0], ...recentMessages.slice(-5)];
-				} else {
-					recentMessages = [recentMessages[0], ...keptMessages];
-				}
-			}
+      // Keep conversation manageable while preserving tool use cycles
+      // Bedrock requires: user, assistant(tool_use), user(tool_result) to stay together
+      if (recentMessages.length > 7) {
+        // Find safe slice point: after a user message (tool_result or regular response)
+        // Keep initial prompt + last 6 messages (3 complete exchanges)
+        const keptMessages = recentMessages.slice(-6);
+        // Verify first kept message after initial is a user message
+        if (keptMessages[0]?.role === "assistant") {
+          // Broken pair - shift by 1 to start on user message
+          recentMessages = [recentMessages[0], ...recentMessages.slice(-5)];
+        } else {
+          recentMessages = [recentMessages[0], ...keptMessages];
+        }
+      }
 
-			const response = await client.converse({
-				system: SYSTEM_PROMPT_OPTIMIZED,
-				messages: recentMessages,
-				tools: agentToolsOptimized,
-				maxTokens: cfg.maxTokens,
-			});
+      const response = await client.converse({
+        system: SYSTEM_PROMPT_OPTIMIZED,
+        messages: recentMessages,
+        tools: agentToolsOptimized,
+        maxTokens: cfg.maxTokens,
+      });
 
-			totalInputTokens += response.usage.inputTokens;
-			totalOutputTokens += response.usage.outputTokens;
+      totalInputTokens += response.usage.inputTokens;
+      totalOutputTokens += response.usage.outputTokens;
 
-			// Add assistant response
-			recentMessages.push({
-				role: "assistant",
-				content: response.output.message.content,
-			});
+      // Add assistant response
+      recentMessages.push({
+        role: "assistant",
+        content: response.output.message.content,
+      });
 
-			// Log text output
-			for (const block of response.output.message.content) {
-				if (isTextBlock(block)) {
-					const text = block.text.slice(0, 150);
-					console.log(`[OptAgent] ${text}...`);
-					// Extract findings for summary
-					if (text.toLowerCase().includes("suspicious") || text.toLowerCase().includes("flag")) {
-						currentFindings.push(text.slice(0, 100));
-					}
-				}
-			}
+      // Log text output
+      for (const block of response.output.message.content) {
+        if (isTextBlock(block)) {
+          const text = block.text.slice(0, 150);
+          console.log(`[OptAgent] ${text}...`);
+          // Extract findings for summary
+          if (
+            text.toLowerCase().includes("suspicious") ||
+            text.toLowerCase().includes("flag")
+          ) {
+            currentFindings.push(text.slice(0, 100));
+          }
+        }
+      }
 
-			// Check if done
-			if (response.stopReason !== "tool_use") {
-				console.log("[OptAgent] No more tool calls - finishing");
-				break;
-			}
+      // Check if done
+      if (response.stopReason !== "tool_use") {
+        console.log("[OptAgent] No more tool calls - finishing");
+        break;
+      }
 
-			// Execute tool calls
-			const toolUseBlocks = response.output.message.content.filter(isToolUse);
-			if (toolUseBlocks.length === 0) break;
+      // Execute tool calls
+      const toolUseBlocks = response.output.message.content.filter(isToolUse);
+      if (toolUseBlocks.length === 0) break;
 
-			const toolResultContents: ContentBlock[] = await Promise.all(
-				toolUseBlocks.map(async (block) => {
-					const toolUse = block.toolUse!;
-					console.log(`[OptAgent] Tool: ${toolUse.name}`);
+      const toolResultContents: ContentBlock[] = await Promise.all(
+        toolUseBlocks.map(async (block) => {
+          const toolUse = block.toolUse!;
+          console.log(`[OptAgent] Tool: ${toolUse.name}`);
 
-					try {
-						const result = await executeOptimizedTool(
-							toolUse.name!,
-							toolUse.input as Record<string, unknown>,
-						);
+          try {
+            const result = await executeOptimizedTool(
+              toolUse.name!,
+              toolUse.input as Record<string, unknown>,
+            );
 
-						// Track state
-						if (toolUse.name === "fetch_account_data") {
-							analyzedAccounts.push((toolUse.input as any).address?.slice(0, 10) || "?");
-						}
-						if (toolUse.name === "flag_suspicious_account") {
-							flagsCreated++;
-							flaggedAccounts.push((toolUse.input as any).address?.slice(0, 10) || "?");
-						}
-						if (toolUse.name === "fetch_market_activity") {
-							const r = result as any;
-							if (r.checkpoint) {
-								newCheckpoints.set(r.id, r.checkpoint);
-							}
-						}
+            // Track state
+            if (toolUse.name === "fetch_account_data") {
+              analyzedAccounts.push(
+                (toolUse.input as any).address?.slice(0, 10) || "?",
+              );
+            }
+            if (toolUse.name === "flag_suspicious_account") {
+              flagsCreated++;
+              flaggedAccounts.push(
+                (toolUse.input as any).address?.slice(0, 10) || "?",
+              );
+            }
+            if (toolUse.name === "fetch_market_activity") {
+              const r = result as any;
+              if (r.checkpoint) {
+                newCheckpoints.set(r.id, r.checkpoint);
+              }
+            }
 
-						return createToolResultContent(toolUse.toolUseId!, result);
-					} catch (error) {
-						const errMsg = error instanceof Error ? error.message : "Error";
-						return {
-							toolResult: {
-								toolUseId: toolUse.toolUseId!,
-								content: [{ text: `Error: ${errMsg}` }],
-								status: "error" as const,
-							},
-						};
-					}
-				}),
-			);
+            return createToolResultContent(toolUse.toolUseId!, result);
+          } catch (error) {
+            const errMsg = error instanceof Error ? error.message : "Error";
+            return {
+              toolResult: {
+                toolUseId: toolUse.toolUseId!,
+                content: [{ text: `Error: ${errMsg}` }],
+                status: "error" as const,
+              },
+            };
+          }
+        }),
+      );
 
-			recentMessages.push({
-				role: "user",
-				content: toolResultContents,
-			});
+      recentMessages.push({
+        role: "user",
+        content: toolResultContents,
+      });
 
-			// Early termination: if we've analyzed accounts and found nothing suspicious
-			if (iterations >= 3 && analyzedAccounts.length >= 3 && flaggedAccounts.length === 0) {
-				const lastText = response.output.message.content
-					.filter(isTextBlock)
-					.map(b => (b as any).text)
-					.join(" ")
-					.toLowerCase();
+      // Early termination: if we've analyzed accounts and found nothing suspicious
+      if (
+        iterations >= 3 &&
+        analyzedAccounts.length >= 3 &&
+        flaggedAccounts.length === 0
+      ) {
+        const lastText = response.output.message.content
+          .filter(isTextBlock)
+          .map((b) => (b as any).text)
+          .join(" ")
+          .toLowerCase();
 
-				if (lastText.includes("no suspicious") || lastText.includes("appears normal") || lastText.includes("no insider")) {
-					console.log("[OptAgent] Early termination - no suspicious activity found");
-					break;
-				}
-			}
-		}
+        if (
+          lastText.includes("no suspicious") ||
+          lastText.includes("appears normal") ||
+          lastText.includes("no insider")
+        ) {
+          console.log(
+            "[OptAgent] Early termination - no suspicious activity found",
+          );
+          break;
+        }
+      }
+    }
 
-		return {
-			success: true,
-			iterations,
-			flagsCreated,
-			accountsAnalyzed: analyzedAccounts.length,
-			tokensUsed: { input: totalInputTokens, output: totalOutputTokens },
-			newCheckpoints,
-			cacheStats: getCacheStats(),
-		};
-	} catch (error) {
-		const errMsg = error instanceof Error ? error.message : "Unknown error";
-		console.error("[OptAgent] Error:", errMsg);
+    return {
+      success: true,
+      iterations,
+      flagsCreated,
+      accountsAnalyzed: analyzedAccounts.length,
+      tokensUsed: { input: totalInputTokens, output: totalOutputTokens },
+      newCheckpoints,
+      cacheStats: getCacheStats(),
+    };
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : "Unknown error";
+    console.error("[OptAgent] Error:", errMsg);
 
-		return {
-			success: false,
-			iterations,
-			flagsCreated,
-			accountsAnalyzed: analyzedAccounts.length,
-			tokensUsed: { input: totalInputTokens, output: totalOutputTokens },
-			newCheckpoints,
-			cacheStats: getCacheStats(),
-			error: errMsg,
-		};
-	}
+    return {
+      success: false,
+      iterations,
+      flagsCreated,
+      accountsAnalyzed: analyzedAccounts.length,
+      tokensUsed: { input: totalInputTokens, output: totalOutputTokens },
+      newCheckpoints,
+      cacheStats: getCacheStats(),
+      error: errMsg,
+    };
+  }
 }
 
 export default runOptimizedAgentLoop;

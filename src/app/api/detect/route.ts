@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../../convex/_generated/api";
-import { analyzeMarketForInsiders, type SuspectedInsider, type InsiderFlag } from "@/lib/server/detection/insider-detector";
+import { type NextRequest, NextResponse } from "next/server";
 import { runOptimizedAgentLoop } from "@/lib/server/agent";
+import {
+  analyzeMarketForInsiders,
+  type InsiderFlag,
+  type SuspectedInsider,
+} from "@/lib/server/detection/insider-detector";
+import { api } from "../../../../convex/_generated/api";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -19,7 +23,15 @@ function getDetectionMode(): DetectionMode {
 /**
  * Map insider flag types to schema signal types
  */
-function mapFlagToSignalType(flag: InsiderFlag): "new_account_large_bet" | "timing_correlation" | "statistical_improbability" | "account_obfuscation" | "disproportionate_bet" | "pattern_match" {
+function mapFlagToSignalType(
+  flag: InsiderFlag,
+):
+  | "new_account_large_bet"
+  | "timing_correlation"
+  | "statistical_improbability"
+  | "account_obfuscation"
+  | "disproportionate_bet"
+  | "pattern_match" {
   switch (flag.type) {
     case "FRESH_WALLET":
       return "new_account_large_bet";
@@ -40,17 +52,24 @@ function mapFlagToSignalType(flag: InsiderFlag): "new_account_large_bet" | "timi
   }
 }
 
-function getHighestSeverity(flags: InsiderFlag[]): "low" | "medium" | "high" | "critical" {
-  const severityOrder: ("critical" | "high" | "medium" | "low")[] = ["critical", "high", "medium", "low"];
+function getHighestSeverity(
+  flags: InsiderFlag[],
+): "low" | "medium" | "high" | "critical" {
+  const severityOrder: ("critical" | "high" | "medium" | "low")[] = [
+    "critical",
+    "high",
+    "medium",
+    "low",
+  ];
   for (const severity of severityOrder) {
-    if (flags.some(f => f.severity === severity)) {
+    if (flags.some((f) => f.severity === severity)) {
       return severity;
     }
   }
   return "low";
 }
 
-async function saveSuspect(suspect: SuspectedInsider, marketId?: string) {
+async function saveSuspect(suspect: SuspectedInsider, _marketId?: string) {
   const accountId = await convex.mutation(api.accounts.upsert, {
     address: suspect.wallet,
     displayName: suspect.displayName,
@@ -58,12 +77,19 @@ async function saveSuspect(suspect: SuspectedInsider, marketId?: string) {
     totalVolume: suspect.totalVolume,
     winRate: suspect.winRate,
     riskScore: suspect.riskScore,
-    flags: suspect.flags.map(f => f.type),
+    flags: suspect.flags.map((f) => f.type),
   });
 
-  const primaryFlag = suspect.flags.reduce((max, f) => f.weight > max.weight ? f : max, suspect.flags[0]);
-  const title = primaryFlag ? primaryFlag.description : `Risk score ${suspect.riskScore}`;
-  const description = suspect.evidence.map(e => `${e.description}: ${e.value}`).join(". ");
+  const primaryFlag = suspect.flags.reduce(
+    (max, f) => (f.weight > max.weight ? f : max),
+    suspect.flags[0],
+  );
+  const title = primaryFlag
+    ? primaryFlag.description
+    : `Risk score ${suspect.riskScore}`;
+  const description = suspect.evidence
+    .map((e) => `${e.description}: ${e.value}`)
+    .join(". ");
 
   await convex.mutation(api.alerts.create, {
     accountId,
@@ -83,7 +109,7 @@ async function saveSuspect(suspect: SuspectedInsider, marketId?: string) {
         totalTrades: suspect.totalTrades,
         uniqueMarketsTraded: suspect.uniqueMarketsTraded,
       },
-      reasoning: suspect.flags.map(f => f.description).join("; "),
+      reasoning: suspect.flags.map((f) => f.description).join("; "),
     },
   });
 
@@ -91,22 +117,34 @@ async function saveSuspect(suspect: SuspectedInsider, marketId?: string) {
 }
 
 async function runRulesDetection(markets: any[], minRiskScore: number) {
-  const results: Array<{ marketSlug: string; suspects: Array<{ wallet: string; riskScore: number }> }> = [];
+  const results: Array<{
+    marketSlug: string;
+    suspects: Array<{ wallet: string; riskScore: number }>;
+  }> = [];
 
   for (const market of markets) {
     const conditionId = market.outcomes[0]?.tokenId;
     if (!conditionId) continue;
 
     try {
-      const suspects = await analyzeMarketForInsiders(conditionId, minRiskScore);
+      const suspects = await analyzeMarketForInsiders(
+        conditionId,
+        minRiskScore,
+      );
       const savedResults: Array<{ wallet: string; riskScore: number }> = [];
 
       for (const suspect of suspects) {
         try {
           const result = await saveSuspect(suspect, market._id);
-          savedResults.push({ wallet: result.wallet, riskScore: result.riskScore });
+          savedResults.push({
+            wallet: result.wallet,
+            riskScore: result.riskScore,
+          });
         } catch (error) {
-          console.error(`[Detect] Error saving suspect ${suspect.wallet}:`, error);
+          console.error(
+            `[Detect] Error saving suspect ${suspect.wallet}:`,
+            error,
+          );
         }
       }
 
@@ -115,7 +153,7 @@ async function runRulesDetection(markets: any[], minRiskScore: number) {
       console.error(`[Detect] Error analyzing market ${market.slug}:`, error);
     }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   return results;
@@ -157,14 +195,23 @@ export async function POST(request: NextRequest) {
     const marketsToAnalyze = markets.slice(0, limitMarkets);
     // Use condition IDs (token IDs) for API calls, not slugs
     const marketIds = marketsToAnalyze
-      .map(m => m.outcomes?.[0]?.tokenId)
+      .map((m) => m.outcomes?.[0]?.tokenId)
       .filter((id): id is string => !!id);
 
     const response: {
       success: boolean;
       mode: DetectionMode;
-      rules?: { marketsAnalyzed: number; totalSuspects: number; results: any[] };
-      ai?: { success: boolean; iterations?: number; flagsCreated?: number; error?: string };
+      rules?: {
+        marketsAnalyzed: number;
+        totalSuspects: number;
+        results: any[];
+      };
+      ai?: {
+        success: boolean;
+        iterations?: number;
+        flagsCreated?: number;
+        error?: string;
+      };
       error?: string;
     } = {
       success: true,
@@ -173,9 +220,17 @@ export async function POST(request: NextRequest) {
 
     // Run rules-based detection
     if (mode === "rules" || mode === "both") {
-      console.log(`[Detect] Running rule-based detection on ${marketsToAnalyze.length} markets`);
-      const rulesResults = await runRulesDetection(marketsToAnalyze, minRiskScore);
-      const totalSuspects = rulesResults.reduce((sum, r) => sum + r.suspects.length, 0);
+      console.log(
+        `[Detect] Running rule-based detection on ${marketsToAnalyze.length} markets`,
+      );
+      const rulesResults = await runRulesDetection(
+        marketsToAnalyze,
+        minRiskScore,
+      );
+      const totalSuspects = rulesResults.reduce(
+        (sum, r) => sum + r.suspects.length,
+        0,
+      );
 
       response.rules = {
         marketsAnalyzed: rulesResults.length,
@@ -187,14 +242,21 @@ export async function POST(request: NextRequest) {
     // Run AI detection
     if (mode === "ai" || mode === "both") {
       // Check if AWS credentials are configured (don't expose details in response)
-      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-        console.warn(`[Detect] AI mode requested but AWS credentials not configured`);
+      if (
+        !process.env.AWS_ACCESS_KEY_ID ||
+        !process.env.AWS_SECRET_ACCESS_KEY
+      ) {
+        console.warn(
+          `[Detect] AI mode requested but AWS credentials not configured`,
+        );
         response.ai = {
           success: false,
           error: "AI detection not available",
         };
       } else {
-        console.log(`[Detect] Running AI agent on markets: ${marketIds.join(", ")}`);
+        console.log(
+          `[Detect] Running AI agent on markets: ${marketIds.join(", ")}`,
+        );
         response.ai = await runAIDetection(marketIds);
       }
     }
@@ -206,7 +268,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { success: false, error: message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -22,7 +22,8 @@ const demoSuspects = [
       severity: "critical" as const,
       signalType: "statistical_improbability" as const,
       title: "92% win rate on new account with 12 trades",
-      description: "Account created 3 days ago with near-perfect prediction accuracy. $287K volume concentrated in 2028 Democratic nominee market. Statistical probability: 0.003%",
+      description:
+        "Account created 3 days ago with near-perfect prediction accuracy. $287K volume concentrated in 2028 Democratic nominee market. Statistical probability: 0.003%",
     },
   },
   {
@@ -37,7 +38,8 @@ const demoSuspects = [
       severity: "high" as const,
       signalType: "timing_correlation" as const,
       title: "Trades placed 2-4 hours before major news events",
-      description: "Pattern analysis shows 8 of 12 large positions opened within hours of significant market-moving announcements. Correlation coefficient: 0.84",
+      description:
+        "Pattern analysis shows 8 of 12 large positions opened within hours of significant market-moving announcements. Correlation coefficient: 0.84",
     },
   },
   {
@@ -52,7 +54,8 @@ const demoSuspects = [
       severity: "critical" as const,
       signalType: "new_account_large_bet" as const,
       title: "New wallet with $89K single position, 100% win rate",
-      description: "Wallet created 18 hours before placing $89K bet on Newsom nomination. No prior trading history. 3 trades, all profitable.",
+      description:
+        "Wallet created 18 hours before placing $89K bet on Newsom nomination. No prior trading history. 3 trades, all profitable.",
     },
   },
   {
@@ -67,7 +70,8 @@ const demoSuspects = [
       severity: "high" as const,
       signalType: "disproportionate_bet" as const,
       title: "Controls 34% of YES positions in target market",
-      description: "Single account holds disproportionate market share. Average position size 8.4x market average. Whale activity patterns detected.",
+      description:
+        "Single account holds disproportionate market share. Average position size 8.4x market average. Whale activity patterns detected.",
     },
   },
   {
@@ -82,7 +86,8 @@ const demoSuspects = [
       severity: "high" as const,
       signalType: "pattern_match" as const,
       title: "85% win rate with concentrated political bets",
-      description: "Account shows unusual accuracy specifically in political markets. 24 of 28 trades in 2028 election category. Cross-referenced with similar account patterns.",
+      description:
+        "Account shows unusual accuracy specifically in political markets. 24 of 28 trades in 2028 election category. Cross-referenced with similar account patterns.",
     },
   },
   {
@@ -97,7 +102,8 @@ const demoSuspects = [
       severity: "critical" as const,
       signalType: "timing_correlation" as const,
       title: "Consistent pre-announcement positioning",
-      description: "7 of 8 trades placed 1-6 hours before candidate announcements. Account age: 12 days. Profit: $67K. Timing correlation: 0.91",
+      description:
+        "7 of 8 trades placed 1-6 hours before candidate announcements. Account age: 12 days. Profit: $67K. Timing correlation: 0.91",
     },
   },
   {
@@ -112,7 +118,8 @@ const demoSuspects = [
       severity: "medium" as const,
       signalType: "disproportionate_bet" as const,
       title: "Anonymous wallet with outsized positions",
-      description: "No display name set. 5 trades averaging $62K each. All positions in Democratic primary markets. Position sizes 12x market median.",
+      description:
+        "No display name set. 5 trades averaging $62K each. All positions in Democratic primary markets. Position sizes 12x market median.",
     },
   },
 ];
@@ -133,7 +140,9 @@ async function seedDemoData() {
         flags: suspect.flags,
       });
 
-      console.log(`Created account: ${suspect.displayName || suspect.address.slice(0, 10)}...`);
+      console.log(
+        `Created account: ${suspect.displayName || suspect.address.slice(0, 10)}...`,
+      );
 
       // Create alert
       await convex.mutation(api.alerts.create, {
@@ -153,7 +162,9 @@ async function seedDemoData() {
         },
       });
 
-      console.log(`  + Alert: ${suspect.alert.severity.toUpperCase()} - ${suspect.alert.title.slice(0, 50)}...`);
+      console.log(
+        `  + Alert: ${suspect.alert.severity.toUpperCase()} - ${suspect.alert.title.slice(0, 50)}...`,
+      );
     } catch (error) {
       console.error(`Error seeding ${suspect.address}:`, error);
     }

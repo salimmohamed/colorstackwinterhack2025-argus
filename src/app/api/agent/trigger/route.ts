@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { runAgentLoop, runOptimizedAgentLoop } from "@/lib/server/agent";
 
 export async function POST(request: NextRequest) {
@@ -7,7 +7,10 @@ export async function POST(request: NextRequest) {
     const marketIds = body.marketIds || ["2028-presidential-election"];
     const useOptimized = body.optimized !== false; // Default to optimized
 
-    console.log(`[API] Triggering ${useOptimized ? "optimized" : "full"} agent for markets:`, marketIds);
+    console.log(
+      `[API] Triggering ${useOptimized ? "optimized" : "full"} agent for markets:`,
+      marketIds,
+    );
 
     if (useOptimized) {
       // Use cost-optimized agent
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
         success: false,
         error: message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

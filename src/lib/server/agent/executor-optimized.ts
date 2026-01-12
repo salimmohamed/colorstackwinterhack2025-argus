@@ -8,11 +8,11 @@
  * 4. Cached context - reuse market stats
  */
 
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../../convex/_generated/api";
 import { dataApiClient } from "../polymarket/data-api";
 import { gammaClient } from "../polymarket/gamma";
 import { subgraphClient } from "../polymarket/subgraph";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../../convex/_generated/api";
 import type { AlertEvidence } from "./types";
 
 // Convex client for saving flags
@@ -26,8 +26,14 @@ const CONTEXT_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 const ACCOUNT_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 // In-memory caches (would be Convex in production)
-const marketContextCache = new Map<string, { data: CompressedMarketContext; cachedAt: number }>();
-const accountCache = new Map<string, { data: CompressedAccountData; cachedAt: number }>();
+const marketContextCache = new Map<
+  string,
+  { data: CompressedMarketContext; cachedAt: number }
+>();
+const accountCache = new Map<
+  string,
+  { data: CompressedAccountData; cachedAt: number }
+>();
 const analyzedAccounts = new Set<string>(); // Skip already-analyzed accounts
 
 /**
@@ -36,379 +42,431 @@ const analyzedAccounts = new Set<string>(); // Skip already-analyzed accounts
  */
 
 export interface CompressedMarketContext {
-	id: string;
-	q: string; // question (shortened key)
-	avgTrade: number;
-	vol24h: number;
-	traders: number;
-	topTraders: Array<{ addr: string; vol: number }>; // top 5 only
+  id: string;
+  q: string; // question (shortened key)
+  avgTrade: number;
+  vol24h: number;
+  traders: number;
+  topTraders: Array<{ addr: string; vol: number }>; // top 5 only
 }
 
 export interface CompressedTradeData {
-	addr: string;
-	amt: number;
-	side: "B" | "S";
-	ts: number;
-	name?: string;
+  addr: string;
+  amt: number;
+  side: "B" | "S";
+  ts: number;
+  name?: string;
 }
 
 export interface CompressedAccountData {
-	addr: string;
-	name?: string;
-	age: number | null; // days
-	trades: number;
-	vol: number;
-	pnl: number;
-	winRate: number;
-	markets: number; // unique markets count
-	largest: number; // largest trade
-	flags: string[]; // detected flags
+  addr: string;
+  name?: string;
+  age: number | null; // days
+  trades: number;
+  vol: number;
+  pnl: number;
+  winRate: number;
+  markets: number; // unique markets count
+  largest: number; // largest trade
+  flags: string[]; // detected flags
 }
 
 export interface CompressedMarketActivity {
-	id: string;
-	newTrades: CompressedTradeData[];
-	context: CompressedMarketContext;
-	checkpoint: number; // timestamp for next incremental fetch
+  id: string;
+  newTrades: CompressedTradeData[];
+  context: CompressedMarketContext;
+  checkpoint: number; // timestamp for next incremental fetch
 }
 
 export interface CompressedComparison {
-	addr: string;
-	relSize: number; // relative to market avg
-	dominance: number; // % of market
-	rank: number | null;
-	isWhale: boolean;
-	isDominant: boolean;
+  addr: string;
+  relSize: number; // relative to market avg
+  dominance: number; // % of market
+  rank: number | null;
+  isWhale: boolean;
+  isDominant: boolean;
 }
 
 /**
  * Fetch market activity - INCREMENTAL & COMPRESSED
  */
 export async function fetchMarketActivityOptimized(
-	marketId: string,
-	sinceTimestamp?: number,
-	cachedContext?: CompressedMarketContext,
+  marketId: string,
+  sinceTimestamp?: number,
+  cachedContext?: CompressedMarketContext,
 ): Promise<CompressedMarketActivity> {
-	// Use cached context if fresh
-	let context = cachedContext;
-	const cached = marketContextCache.get(marketId);
+  // Use cached context if fresh
+  let context = cachedContext;
+  const cached = marketContextCache.get(marketId);
 
-	if (!context && cached && Date.now() - cached.cachedAt < CONTEXT_CACHE_DURATION) {
-		context = cached.data;
-	}
+  if (
+    !context &&
+    cached &&
+    Date.now() - cached.cachedAt < CONTEXT_CACHE_DURATION
+  ) {
+    context = cached.data;
+  }
 
-	// Fetch only new trades (incremental)
-	const hoursBack = sinceTimestamp ? 168 : 72; // 7 days for incremental context
-	console.log(`[Executor] Fetching market activity for ${marketId.slice(0, 15)}...`);
-	const activity = await dataApiClient.getMarketActivity(marketId, hoursBack, MIN_TRADE_SIZE_USD);
-	console.log(`[Executor] Got ${activity.length} trades (min $${MIN_TRADE_SIZE_USD})`);
+  // Fetch only new trades (incremental)
+  const hoursBack = sinceTimestamp ? 168 : 72; // 7 days for incremental context
+  console.log(
+    `[Executor] Fetching market activity for ${marketId.slice(0, 15)}...`,
+  );
+  const activity = await dataApiClient.getMarketActivity(
+    marketId,
+    hoursBack,
+    MIN_TRADE_SIZE_USD,
+  );
+  console.log(
+    `[Executor] Got ${activity.length} trades (min $${MIN_TRADE_SIZE_USD})`,
+  );
 
-	// Filter to only trades after checkpoint
-	const newTrades = sinceTimestamp
-		? activity.filter(a => a.timestamp > sinceTimestamp)
-		: activity;
+  // Filter to only trades after checkpoint
+  const newTrades = sinceTimestamp
+    ? activity.filter((a) => a.timestamp > sinceTimestamp)
+    : activity;
 
-	// Build context if not cached
-	if (!context) {
-		// Gamma API may fail with condition IDs, handle gracefully
-		let market = null;
-		try {
-			market = await gammaClient.getMarketById(marketId);
-		} catch (e) {
-			console.log(`[Executor] Gamma API unavailable for ${marketId.slice(0, 10)}, using activity data`);
-		}
-		const totalVol = activity.reduce((s, t) => s + (t.usdcSize || t.size * t.price), 0);
-		const avgTrade = activity.length > 0 ? totalVol / activity.length : 0;
+  // Build context if not cached
+  if (!context) {
+    // Gamma API may fail with condition IDs, handle gracefully
+    let market = null;
+    try {
+      market = await gammaClient.getMarketById(marketId);
+    } catch (_e) {
+      console.log(
+        `[Executor] Gamma API unavailable for ${marketId.slice(0, 10)}, using activity data`,
+      );
+    }
+    const totalVol = activity.reduce(
+      (s, t) => s + (t.usdcSize ?? t.size * t.price),
+      0,
+    );
+    const avgTrade = activity.length > 0 ? totalVol / activity.length : 0;
 
-		// Top 5 traders only
-		const traderVols = new Map<string, number>();
-		for (const t of activity) {
-			const cur = traderVols.get(t.proxyWallet) || 0;
-			traderVols.set(t.proxyWallet, cur + (t.usdcSize || t.size * t.price));
-		}
-		const topTraders = [...traderVols.entries()]
-			.sort((a, b) => b[1] - a[1])
-			.slice(0, 5)
-			.map(([addr, vol]) => ({ addr, vol: Math.round(vol) })); // Store full address for reliable comparison
+    // Top 5 traders only
+    const traderVols = new Map<string, number>();
+    for (const t of activity) {
+      const cur = traderVols.get(t.proxyWallet) || 0;
+      traderVols.set(t.proxyWallet, cur + (t.usdcSize ?? t.size * t.price));
+    }
+    const topTraders = [...traderVols.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([addr, vol]) => ({ addr, vol: Math.round(vol) })); // Store full address for reliable comparison
 
-		context = {
-			id: marketId,
-			q: market?.question?.slice(0, 50) || "Unknown",
-			avgTrade: Math.round(avgTrade),
-			vol24h: Math.round(totalVol),
-			traders: new Set(activity.map(a => a.proxyWallet)).size,
-			topTraders,
-		};
+    context = {
+      id: marketId,
+      q: market?.question?.slice(0, 50) || "Unknown",
+      avgTrade: Math.round(avgTrade),
+      vol24h: Math.round(totalVol),
+      traders: new Set(activity.map((a) => a.proxyWallet)).size,
+      topTraders,
+    };
 
-		// Cache it
-		marketContextCache.set(marketId, { data: context, cachedAt: Date.now() });
-	}
+    // Cache it
+    marketContextCache.set(marketId, { data: context, cachedAt: Date.now() });
+  }
 
-	// Compress trades - only essential fields
-	// Keep full addresses so agent can use them for lookups
-	const compressedTrades: CompressedTradeData[] = newTrades
-		.slice(0, 50) // Limit to 50 most recent
-		.map(t => ({
-			addr: t.proxyWallet, // Full address for agent to use
-			amt: Math.round(t.usdcSize || t.size * t.price),
-			side: t.side === "BUY" ? "B" : "S",
-			ts: t.timestamp,
-			name: t.name || t.pseudonym || undefined,
-		}));
+  // Compress trades - only essential fields
+  // Keep full addresses so agent can use them for lookups
+  const compressedTrades: CompressedTradeData[] = newTrades
+    .slice(0, 50) // Limit to 50 most recent
+    .map((t) => ({
+      addr: t.proxyWallet, // Full address for agent to use
+      amt: Math.round(t.usdcSize ?? t.size * t.price),
+      side: t.side === "BUY" ? "B" : "S",
+      ts: t.timestamp,
+      name: t.name || t.pseudonym || undefined,
+    }));
 
-	return {
-		id: marketId,
-		newTrades: compressedTrades,
-		context,
-		checkpoint: activity[0]?.timestamp || Date.now(),
-	};
+  return {
+    id: marketId,
+    newTrades: compressedTrades,
+    context,
+    checkpoint: activity[0]?.timestamp || Date.now(),
+  };
 }
 
 /**
  * Fetch account data - CACHED & COMPRESSED
  */
 export async function fetchAccountDataOptimized(
-	address: string,
-	forceRefresh = false,
+  address: string,
+  forceRefresh = false,
 ): Promise<CompressedAccountData | { cached: true; summary: string }> {
-	// Check if already analyzed this session
-	if (!forceRefresh && analyzedAccounts.has(address.toLowerCase())) {
-		return { cached: true, summary: `Account ${address.slice(0, 10)} already analyzed this session` };
-	}
+  // Check if already analyzed this session
+  if (!forceRefresh && analyzedAccounts.has(address.toLowerCase())) {
+    return {
+      cached: true,
+      summary: `Account ${address.slice(0, 10)} already analyzed this session`,
+    };
+  }
 
-	// Check cache
-	const cached = accountCache.get(address.toLowerCase());
-	if (!forceRefresh && cached && Date.now() - cached.cachedAt < ACCOUNT_CACHE_DURATION) {
-		return cached.data;
-	}
+  // Check cache
+  const cached = accountCache.get(address.toLowerCase());
+  if (
+    !forceRefresh &&
+    cached &&
+    Date.now() - cached.cachedAt < ACCOUNT_CACHE_DURATION
+  ) {
+    return cached.data;
+  }
 
-	// Fetch fresh data
-	const [activity, positions] = await Promise.all([
-		dataApiClient.getAccountActivity(address, 200), // Reduced from 500
-		dataApiClient.getUserPositions(address),
-	]);
+  // Fetch fresh data
+  const [activity, positions] = await Promise.all([
+    dataApiClient.getAccountActivity(address, 200), // Reduced from 500
+    dataApiClient.getUserPositions(address),
+  ]);
 
-	const trades = activity.filter(a => a.type === "TRADE");
-	const accountAge = await subgraphClient.getAccountAgeDays(address);
+  const trades = activity.filter((a) => a.type === "TRADE");
+  const accountAge = await subgraphClient.getAccountAgeDays(address);
 
-	// Calculate stats
-	const totalVol = trades.reduce((s, t) => s + t.usdcSize, 0);
-	const pnl = positions.reduce((s, p) => s + (p.realizedPnl || 0) + (p.cashPnl || 0), 0);
-	const closedPos = positions.filter(p => p.realizedPnl !== 0);
-	const wins = closedPos.filter(p => p.realizedPnl > 0).length;
-	const winRate = closedPos.length >= 2 ? wins / closedPos.length : 0;
-	const uniqueMarkets = new Set(trades.map(t => t.conditionId)).size;
-	const largest = Math.max(...trades.map(t => t.usdcSize), 0);
+  // Calculate stats
+  const totalVol = trades.reduce((s, t) => s + t.usdcSize, 0);
+  const pnl = positions.reduce(
+    (s, p) => s + (p.realizedPnl || 0) + (p.cashPnl || 0),
+    0,
+  );
+  const closedPos = positions.filter((p) => p.realizedPnl !== 0);
+  const wins = closedPos.filter((p) => p.realizedPnl > 0).length;
+  const winRate = closedPos.length >= 2 ? wins / closedPos.length : 0;
+  const uniqueMarkets = new Set(trades.map((t) => t.conditionId)).size;
+  const largest = Math.max(...trades.map((t) => t.usdcSize), 0);
 
-	// Quick flag detection
-	const flags: string[] = [];
-	if (trades.length <= 10) flags.push("NEW");
-	if (winRate >= 0.85 && closedPos.length >= 5) flags.push("HIGH_WIN");
-	if (uniqueMarkets <= 2 && trades.length >= 5) flags.push("CONCENTRATED");
-	if (pnl >= 10000) flags.push("BIG_PROFIT");
-	if (largest >= 5000) flags.push("WHALE_TRADE");
+  // Quick flag detection
+  const flags: string[] = [];
+  if (trades.length <= 10) flags.push("NEW");
+  if (winRate >= 0.85 && closedPos.length >= 5) flags.push("HIGH_WIN");
+  if (uniqueMarkets <= 2 && trades.length >= 5) flags.push("CONCENTRATED");
+  if (pnl >= 10000) flags.push("BIG_PROFIT");
+  if (largest >= 5000) flags.push("WHALE_TRADE");
 
-	const result: CompressedAccountData = {
-		addr: address, // Store full address, truncate only for display
-		name: trades[0]?.name || trades[0]?.pseudonym,
-		age: accountAge,
-		trades: trades.length,
-		vol: Math.round(totalVol),
-		pnl: Math.round(pnl),
-		winRate: Math.round(winRate * 100) / 100,
-		markets: uniqueMarkets,
-		largest: Math.round(largest),
-		flags,
-	};
+  const result: CompressedAccountData = {
+    addr: address, // Store full address, truncate only for display
+    name: trades[0]?.name || trades[0]?.pseudonym,
+    age: accountAge,
+    trades: trades.length,
+    vol: Math.round(totalVol),
+    pnl: Math.round(pnl),
+    winRate: Math.round(winRate * 100) / 100,
+    markets: uniqueMarkets,
+    largest: Math.round(largest),
+    flags,
+  };
 
-	// Cache it
-	accountCache.set(address.toLowerCase(), { data: result, cachedAt: Date.now() });
-	analyzedAccounts.add(address.toLowerCase());
+  // Cache it
+  accountCache.set(address.toLowerCase(), {
+    data: result,
+    cachedAt: Date.now(),
+  });
+  analyzedAccounts.add(address.toLowerCase());
 
-	return result;
+  return result;
 }
 
 /**
  * Compare to market - COMPRESSED
  */
 export async function compareToMarketOptimized(
-	address: string,
-	marketId: string,
+  address: string,
+  marketId: string,
 ): Promise<CompressedComparison> {
-	const marketData = await fetchMarketActivityOptimized(marketId);
-	const holders = await dataApiClient.getMarketHolders(marketId);
+  const marketData = await fetchMarketActivityOptimized(marketId);
+  const holders = await dataApiClient.getMarketHolders(marketId);
 
-	// Find trader's volume in this market
-	const accountActivity = await dataApiClient.getAccountActivity(address, 100);
-	const marketTrades = accountActivity.filter(a => a.conditionId === marketId);
-	const traderLargest = Math.max(...marketTrades.map(t => t.usdcSize), 0);
+  // Find trader's volume in this market
+  const accountActivity = await dataApiClient.getAccountActivity(address, 100);
+  const marketTrades = accountActivity.filter(
+    (a) => a.conditionId === marketId,
+  );
+  const traderLargest = Math.max(...marketTrades.map((t) => t.usdcSize), 0);
 
-	// Relative size
-	const relSize = marketData.context.avgTrade > 0
-		? traderLargest / marketData.context.avgTrade
-		: 0;
+  // Relative size
+  const relSize =
+    marketData.context.avgTrade > 0
+      ? traderLargest / marketData.context.avgTrade
+      : 0;
 
-	// Market dominance
-	let totalHoldings = 0;
-	let traderHoldings = 0;
-	for (const resp of holders) {
-		for (const h of resp.holders) {
-			totalHoldings += h.amount;
-			if (h.proxyWallet.toLowerCase() === address.toLowerCase()) {
-				traderHoldings += h.amount;
-			}
-		}
-	}
-	const dominance = totalHoldings > 0 ? traderHoldings / totalHoldings : 0;
+  // Market dominance
+  let totalHoldings = 0;
+  let traderHoldings = 0;
+  for (const resp of holders) {
+    for (const h of resp.holders) {
+      totalHoldings += h.amount;
+      if (h.proxyWallet.toLowerCase() === address.toLowerCase()) {
+        traderHoldings += h.amount;
+      }
+    }
+  }
+  const dominance = totalHoldings > 0 ? traderHoldings / totalHoldings : 0;
 
-	// Rank - compare full addresses for reliable matching
-	const rank = marketData.context.topTraders.findIndex(
-		t => t.addr.toLowerCase() === address.toLowerCase()
-	);
+  // Rank - compare full addresses for reliable matching
+  const rank = marketData.context.topTraders.findIndex(
+    (t) => t.addr.toLowerCase() === address.toLowerCase(),
+  );
 
-	return {
-		addr: address.slice(0, 10),
-		relSize: Math.round(relSize * 10) / 10,
-		dominance: Math.round(dominance * 100) / 100,
-		rank: rank >= 0 ? rank + 1 : null,
-		isWhale: relSize >= 5,
-		isDominant: dominance >= 0.3,
-	};
+  return {
+    addr: address.slice(0, 10),
+    relSize: Math.round(relSize * 10) / 10,
+    dominance: Math.round(dominance * 100) / 100,
+    rank: rank >= 0 ? rank + 1 : null,
+    isWhale: relSize >= 5,
+    isDominant: dominance >= 0.3,
+  };
 }
 
 /**
  * Map signal type string to schema enum
  */
-function mapSignalType(signalType: string): "new_account_large_bet" | "timing_correlation" | "statistical_improbability" | "account_obfuscation" | "disproportionate_bet" | "pattern_match" {
-	const type = signalType.toLowerCase();
-	if (type.includes("new") || type.includes("fresh")) return "new_account_large_bet";
-	if (type.includes("timing")) return "timing_correlation";
-	if (type.includes("win") || type.includes("statistical")) return "statistical_improbability";
-	if (type.includes("obfuscate") || type.includes("name")) return "account_obfuscation";
-	if (type.includes("large") || type.includes("whale") || type.includes("size")) return "disproportionate_bet";
-	return "pattern_match";
+function mapSignalType(
+  signalType: string,
+):
+  | "new_account_large_bet"
+  | "timing_correlation"
+  | "statistical_improbability"
+  | "account_obfuscation"
+  | "disproportionate_bet"
+  | "pattern_match" {
+  const type = signalType.toLowerCase();
+  if (type.includes("new") || type.includes("fresh"))
+    return "new_account_large_bet";
+  if (type.includes("timing")) return "timing_correlation";
+  if (type.includes("win") || type.includes("statistical"))
+    return "statistical_improbability";
+  if (type.includes("obfuscate") || type.includes("name"))
+    return "account_obfuscation";
+  if (type.includes("large") || type.includes("whale") || type.includes("size"))
+    return "disproportionate_bet";
+  return "pattern_match";
 }
 
 /**
  * Flag account - SAVES TO CONVEX
  */
 export async function flagSuspiciousAccountOptimized(params: {
-	address: string;
-	marketId?: string;
-	severity: "low" | "medium" | "high" | "critical";
-	signalType: string;
-	title: string;
-	reasoning: string;
-	evidence?: AlertEvidence;
+  address: string;
+  marketId?: string;
+  severity: "low" | "medium" | "high" | "critical";
+  signalType: string;
+  title: string;
+  reasoning: string;
+  evidence?: AlertEvidence;
 }): Promise<{ success: boolean; id: string }> {
-	// Normalize address at entry for consistent handling
-	const normalizedAddress = params.address.toLowerCase();
-	console.log("[Agent] FLAG:", params.severity, normalizedAddress.slice(0, 10), params.title);
+  // Normalize address at entry for consistent handling
+  const normalizedAddress = params.address.toLowerCase();
+  console.log(
+    "[Agent] FLAG:",
+    params.severity,
+    normalizedAddress.slice(0, 10),
+    params.title,
+  );
 
-	try {
-		// Get account data from cache
-		const accountData = accountCache.get(normalizedAddress)?.data;
-		const fullAddress = accountData?.addr || normalizedAddress;
+  try {
+    // Get account data from cache
+    const accountData = accountCache.get(normalizedAddress)?.data;
+    const fullAddress = accountData?.addr || normalizedAddress;
 
-		// Upsert account
-		const metrics = params.evidence?.metrics as Record<string, unknown> | undefined;
-		const accountId = await convex.mutation(api.accounts.upsert, {
-			address: fullAddress.toLowerCase(),
-			displayName: accountData?.name || undefined,
-			totalTrades: accountData?.trades || 0,
-			totalVolume: accountData?.vol || 0,
-			winRate: accountData?.winRate || 0,
-			riskScore: (metrics?.riskScore as number) || 50,
-			flags: accountData?.flags || [params.signalType],
-		});
+    // Upsert account
+    const metrics = params.evidence?.metrics as
+      | Record<string, unknown>
+      | undefined;
+    const accountId = await convex.mutation(api.accounts.upsert, {
+      address: fullAddress.toLowerCase(),
+      displayName: accountData?.name || undefined,
+      totalTrades: accountData?.trades || 0,
+      totalVolume: accountData?.vol || 0,
+      winRate: accountData?.winRate || 0,
+      riskScore: (metrics?.riskScore as number) || 50,
+      flags: accountData?.flags || [params.signalType],
+    });
 
-		// Create alert (marketId omitted - would need Convex ID lookup)
-		await convex.mutation(api.alerts.create, {
-			accountId,
-			// Don't pass marketId - it's a condition ID, not a Convex ID
-			severity: params.severity,
-			signalType: mapSignalType(params.signalType),
-			title: params.title,
-			description: params.reasoning,
-			evidence: {
-				metrics: params.evidence?.metrics || {
-					riskScore: 50,
-					totalProfit: accountData?.pnl || 0,
-					totalVolume: accountData?.vol || 0,
-					winRate: accountData?.winRate || 0,
-					accountAgeDays: accountData?.age || 0,
-					totalTrades: accountData?.trades || 0,
-				},
-				reasoning: params.reasoning,
-			},
-		});
+    // Create alert (marketId omitted - would need Convex ID lookup)
+    await convex.mutation(api.alerts.create, {
+      accountId,
+      // Don't pass marketId - it's a condition ID, not a Convex ID
+      severity: params.severity,
+      signalType: mapSignalType(params.signalType),
+      title: params.title,
+      description: params.reasoning,
+      evidence: {
+        metrics: params.evidence?.metrics || {
+          riskScore: 50,
+          totalProfit: accountData?.pnl || 0,
+          totalVolume: accountData?.vol || 0,
+          winRate: accountData?.winRate || 0,
+          accountAgeDays: accountData?.age || 0,
+          totalTrades: accountData?.trades || 0,
+        },
+        reasoning: params.reasoning,
+      },
+    });
 
-		console.log("[Agent] Saved to Convex:", accountId);
-		return { success: true, id: accountId };
-	} catch (error) {
-		console.error("[Agent] Error saving to Convex:", error);
-		return { success: false, id: `error_${Date.now()}` };
-	}
+    console.log("[Agent] Saved to Convex:", accountId);
+    return { success: true, id: accountId };
+  } catch (error) {
+    console.error("[Agent] Error saving to Convex:", error);
+    return { success: false, id: `error_${Date.now()}` };
+  }
 }
 
 /**
  * Execute optimized tool
  */
 export async function executeOptimizedTool(
-	toolName: string,
-	input: Record<string, unknown>,
+  toolName: string,
+  input: Record<string, unknown>,
 ): Promise<unknown> {
-	switch (toolName) {
-		case "fetch_market_activity":
-			return fetchMarketActivityOptimized(
-				input.marketId as string,
-				input.sinceTimestamp as number | undefined,
-			);
+  switch (toolName) {
+    case "fetch_market_activity":
+      return fetchMarketActivityOptimized(
+        input.marketId as string,
+        input.sinceTimestamp as number | undefined,
+      );
 
-		case "fetch_account_data":
-			return fetchAccountDataOptimized(
-				input.address as string,
-				input.forceRefresh as boolean | undefined,
-			);
+    case "fetch_account_data":
+      return fetchAccountDataOptimized(
+        input.address as string,
+        input.forceRefresh as boolean | undefined,
+      );
 
-		case "compare_to_market":
-			return compareToMarketOptimized(
-				input.address as string,
-				input.marketId as string,
-			);
+    case "compare_to_market":
+      return compareToMarketOptimized(
+        input.address as string,
+        input.marketId as string,
+      );
 
-		case "flag_suspicious_account":
-			return flagSuspiciousAccountOptimized({
-				address: input.address as string,
-				marketId: input.marketId as string | undefined,
-				severity: input.severity as "low" | "medium" | "high" | "critical",
-				signalType: input.signalType as string,
-				title: input.title as string,
-				reasoning: input.reasoning as string,
-				evidence: input.evidence as AlertEvidence | undefined,
-			});
+    case "flag_suspicious_account":
+      return flagSuspiciousAccountOptimized({
+        address: input.address as string,
+        marketId: input.marketId as string | undefined,
+        severity: input.severity as "low" | "medium" | "high" | "critical",
+        signalType: input.signalType as string,
+        title: input.title as string,
+        reasoning: input.reasoning as string,
+        evidence: input.evidence as AlertEvidence | undefined,
+      });
 
-		default:
-			throw new Error(`Unknown tool: ${toolName}`);
-	}
+    default:
+      throw new Error(`Unknown tool: ${toolName}`);
+  }
 }
 
 /**
  * Clear caches (call between runs if needed)
  */
 export function clearCaches() {
-	marketContextCache.clear();
-	accountCache.clear();
-	analyzedAccounts.clear();
+  marketContextCache.clear();
+  accountCache.clear();
+  analyzedAccounts.clear();
 }
 
 /**
  * Get cache stats
  */
 export function getCacheStats() {
-	return {
-		marketContexts: marketContextCache.size,
-		accounts: accountCache.size,
-		analyzedThisSession: analyzedAccounts.size,
-	};
+  return {
+    marketContexts: marketContextCache.size,
+    accounts: accountCache.size,
+    analyzedThisSession: analyzedAccounts.size,
+  };
 }

@@ -65,5 +65,4 @@ NEVER call fetch_market_activity twice on the same market. Move forward.
 - Do NOT flag accounts just to meet a quota - only flag genuine suspects
 - If a market has no suspicious activity, that's a valid finding`;
 
-
 export default SYSTEM_PROMPT_OPTIMIZED;

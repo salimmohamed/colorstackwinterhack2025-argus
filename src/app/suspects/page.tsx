@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PixelBlastEye } from "@/components/ui/pixel-blast-eye";
+import { api } from "../../../convex/_generated/api";
 
 type Severity = "low" | "medium" | "high" | "critical";
 
@@ -85,8 +85,10 @@ function SuspectCard({
   delay: string;
 }) {
   const config = SEVERITY_CONFIG[alert.severity];
-  const metrics = (alert.evidence?.metrics as Record<string, number | string>) || {};
-  const isHighPriority = alert.severity === "critical" || alert.severity === "high";
+  const metrics =
+    (alert.evidence?.metrics as Record<string, number | string>) || {};
+  const isHighPriority =
+    alert.severity === "critical" || alert.severity === "high";
 
   return (
     <div className="animate-fadeSlideUp" style={{ animationDelay: delay }}>
@@ -106,13 +108,16 @@ function SuspectCard({
               {/* Address & Time */}
               <div className="flex items-center gap-3 mb-2">
                 <span className="font-mono text-sm text-[var(--foreground)]">
-                  {alert.accountAddress.slice(0, 6)}...{alert.accountAddress.slice(-4)}
+                  {alert.accountAddress.slice(0, 6)}...
+                  {alert.accountAddress.slice(-4)}
                 </span>
                 <span
                   className="text-[0.55rem] tracking-[0.15em] uppercase font-semibold px-2 py-0.5"
                   style={{
                     color: config.color,
-                    backgroundColor: isHighPriority ? "rgba(245,158,11,0.1)" : "transparent",
+                    backgroundColor: isHighPriority
+                      ? "rgba(245,158,11,0.1)"
+                      : "transparent",
                   }}
                 >
                   {config.label}
@@ -241,15 +246,24 @@ export default function SuspectsPage() {
 
   const grouped = useMemo(() => {
     if (!alerts) return null;
-    const g: Record<Severity, Alert[]> = { critical: [], high: [], medium: [], low: [] };
+    const g: Record<Severity, Alert[]> = {
+      critical: [],
+      high: [],
+      medium: [],
+      low: [],
+    };
     alerts.forEach((a) => {
       if (a.severity in g) g[a.severity as Severity].push(a as Alert);
     });
     // Sort each group by risk score (highest first)
     Object.keys(g).forEach((key) => {
       g[key as Severity].sort((a, b) => {
-        const riskA = (a.evidence?.metrics as Record<string, unknown>)?.riskScore as number || 0;
-        const riskB = (b.evidence?.metrics as Record<string, unknown>)?.riskScore as number || 0;
+        const riskA =
+          ((a.evidence?.metrics as Record<string, unknown>)
+            ?.riskScore as number) || 0;
+        const riskB =
+          ((b.evidence?.metrics as Record<string, unknown>)
+            ?.riskScore as number) || 0;
         return riskB - riskA;
       });
     });
@@ -294,7 +308,8 @@ export default function SuspectsPage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse at center, transparent 20%, var(--background) 80%)",
+            background:
+              "radial-gradient(ellipse at center, transparent 20%, var(--background) 80%)",
           }}
         />
 
@@ -302,7 +317,8 @@ export default function SuspectsPage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "linear-gradient(90deg, var(--background) 0%, var(--background) 30%, transparent 60%)",
+            background:
+              "linear-gradient(90deg, var(--background) 0%, var(--background) 30%, transparent 60%)",
           }}
         />
       </div>
@@ -312,7 +328,10 @@ export default function SuspectsPage() {
         <div className="max-w-2xl min-h-screen p-8 flex flex-col">
           {/* Header */}
           <header className="mb-8">
-            <nav className="mb-6 animate-fadeSlideUp" style={{ animationDelay: "0s" }}>
+            <nav
+              className="mb-6 animate-fadeSlideUp"
+              style={{ animationDelay: "0s" }}
+            >
               <Link
                 href="/"
                 className="text-[var(--text-dim)] text-xs tracking-[0.15em] uppercase hover:text-[var(--accent)] transition-colors"
@@ -333,7 +352,8 @@ export default function SuspectsPage() {
               </h1>
               {mounted && totalCount > 0 && (
                 <p className="text-sm text-[var(--text-dim)] mt-2">
-                  {totalCount} account{totalCount !== 1 ? "s" : ""} flagged for review
+                  {totalCount} account{totalCount !== 1 ? "s" : ""} flagged for
+                  review
                 </p>
               )}
             </div>
@@ -341,7 +361,12 @@ export default function SuspectsPage() {
 
           {/* Stats Grid */}
           <section className="grid grid-cols-4 gap-3 mb-8">
-            <StatCard count={counts.critical} label="Critical" isAccent delay="0.15s" />
+            <StatCard
+              count={counts.critical}
+              label="Critical"
+              isAccent
+              delay="0.15s"
+            />
             <StatCard count={counts.high} label="High" isAccent delay="0.2s" />
             <StatCard count={counts.medium} label="Medium" delay="0.25s" />
             <StatCard count={counts.low} label="Low" delay="0.3s" />
@@ -354,18 +379,27 @@ export default function SuspectsPage() {
                 className="flex flex-col items-center py-16 animate-fadeSlideUp"
                 style={{ animationDelay: "0.3s" }}
               >
-                <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
-                <p className="mt-4 text-sm text-[var(--text-dim)]">Loading suspects...</p>
+                <span className="text-3xl text-[var(--accent)] animate-pulse">
+                  ◉
+                </span>
+                <p className="mt-4 text-sm text-[var(--text-dim)]">
+                  Loading suspects...
+                </p>
               </div>
             ) : totalCount === 0 ? (
               <div
                 className="flex flex-col items-center py-16 animate-fadeSlideUp"
                 style={{ animationDelay: "0.3s" }}
               >
-                <span className="text-4xl text-[var(--text-muted)] mb-4">◎</span>
-                <h3 className="text-base text-[var(--foreground)] mb-2">No Suspects Found</h3>
+                <span className="text-4xl text-[var(--text-muted)] mb-4">
+                  ◎
+                </span>
+                <h3 className="text-base text-[var(--foreground)] mb-2">
+                  No Suspects Found
+                </h3>
                 <p className="text-sm text-[var(--text-dim)] text-center max-w-sm">
-                  Suspects will appear here when suspicious trading patterns are detected.
+                  Suspects will appear here when suspicious trading patterns are
+                  detected.
                 </p>
               </div>
             ) : (
@@ -378,7 +412,9 @@ export default function SuspectsPage() {
                         key={alert._id}
                         alert={alert}
                         isOpen={openId === alert._id}
-                        onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
+                        onToggle={() =>
+                          setOpenId(openId === alert._id ? null : alert._id)
+                        }
                         delay={`${0.35 + i * 0.05}s`}
                       />
                     ))}
@@ -406,7 +442,9 @@ export default function SuspectsPage() {
                           key={alert._id}
                           alert={alert}
                           isOpen={openId === alert._id}
-                          onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
+                          onToggle={() =>
+                            setOpenId(openId === alert._id ? null : alert._id)
+                          }
                           delay={`${0.55 + i * 0.05}s`}
                         />
                       ))}
@@ -423,7 +461,8 @@ export default function SuspectsPage() {
             style={{ animationDelay: "0.8s" }}
           >
             <p className="font-serif italic text-sm text-[var(--text-dim)] leading-6">
-              &ldquo;In the kingdom of the blind, the one-eyed man is king.&rdquo;
+              &ldquo;In the kingdom of the blind, the one-eyed man is
+              king.&rdquo;
             </p>
             <p className="text-[0.65rem] text-[var(--text-muted)] mt-1 tracking-[0.08em]">
               — Erasmus

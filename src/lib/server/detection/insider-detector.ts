@@ -11,7 +11,7 @@
  * Reference: Polysights bot detection criteria
  */
 
-import { dataApiClient, type ActivityRecord, type Position } from "../polymarket/data-api";
+import { type ActivityRecord, dataApiClient } from "../polymarket/data-api";
 
 export interface SuspectedInsider {
   wallet: string;
@@ -39,7 +39,15 @@ export interface SuspectedInsider {
 }
 
 export interface InsiderFlag {
-  type: "FRESH_WALLET" | "OVERSIZED_POSITION" | "HIGH_WIN_RATE" | "CONCENTRATED_BETS" | "SUSPICIOUS_TIMING" | "LARGE_PROFIT" | "MARKET_DOMINANCE" | "RELATIVE_SIZE";
+  type:
+    | "FRESH_WALLET"
+    | "OVERSIZED_POSITION"
+    | "HIGH_WIN_RATE"
+    | "CONCENTRATED_BETS"
+    | "SUSPICIOUS_TIMING"
+    | "LARGE_PROFIT"
+    | "MARKET_DOMINANCE"
+    | "RELATIVE_SIZE";
   severity: "low" | "medium" | "high" | "critical";
   description: string;
   weight: number;
@@ -75,14 +83,14 @@ const THRESHOLDS = {
   WHALE_POSITION_MIN_USD: 10000,
 
   // RELATIVE position sizes (compared to market average)
-  RELATIVE_SIZE_SUSPICIOUS: 3,  // 3x market average = suspicious
-  RELATIVE_SIZE_EXTREME: 5,     // 5x market average = very suspicious
-  RELATIVE_SIZE_WHALE: 10,      // 10x market average = whale behavior
+  RELATIVE_SIZE_SUSPICIOUS: 3, // 3x market average = suspicious
+  RELATIVE_SIZE_EXTREME: 5, // 5x market average = very suspicious
+  RELATIVE_SIZE_WHALE: 10, // 10x market average = whale behavior
 
   // Market dominance (% of market controlled by single wallet)
-  DOMINANCE_SUSPICIOUS: 0.3,    // 30% of market
-  DOMINANCE_HIGH: 0.5,          // 50% of market
-  DOMINANCE_EXTREME: 0.7,       // 70% of market
+  DOMINANCE_SUSPICIOUS: 0.3, // 30% of market
+  DOMINANCE_HIGH: 0.5, // 50% of market
+  DOMINANCE_EXTREME: 0.7, // 70% of market
 
   // Win rate (insiders know outcomes)
   HIGH_WIN_RATE_MIN: 0.7,
@@ -95,9 +103,9 @@ const THRESHOLDS = {
   CONCENTRATED_MAX_MARKETS: 5,
 
   // Profit tiers
-  PROFIT_TIER_1: 1000,   // $1K+
-  PROFIT_TIER_2: 10000,  // $10K+
-  PROFIT_TIER_3: 50000,  // $50K+
+  PROFIT_TIER_1: 1000, // $1K+
+  PROFIT_TIER_2: 10000, // $10K+
+  PROFIT_TIER_3: 50000, // $50K+
   PROFIT_TIER_4: 100000, // $100K+
 };
 
@@ -109,7 +117,7 @@ const THRESHOLDS = {
  */
 export async function analyzeTrader(
   wallet: string,
-  marketContext?: MarketContext
+  marketContext?: MarketContext,
 ): Promise<SuspectedInsider | null> {
   try {
     // Fetch trader data
@@ -130,7 +138,9 @@ export async function analyzeTrader(
     // Account age calculation with sanity checks
     // The API returns timestamp in seconds, convert to ms for Date comparison
     let accountAgeDays = firstTradeTimestamp
-      ? Math.floor((Date.now() - firstTradeTimestamp * 1000) / (1000 * 60 * 60 * 24))
+      ? Math.floor(
+          (Date.now() - firstTradeTimestamp * 1000) / (1000 * 60 * 60 * 24),
+        )
       : 0;
 
     // SANITY CHECK: If we have lots of trades but low days, the API is returning bad data
@@ -139,23 +149,35 @@ export async function analyzeTrader(
     if (accountAgeDays < minEstimatedAgeDays && stats.totalTrades > 50) {
       // API is returning incomplete history, use estimated age instead
       accountAgeDays = minEstimatedAgeDays;
-      console.log(`[InsiderDetector] Corrected account age for ${wallet}: ${minEstimatedAgeDays} days (${stats.totalTrades} trades)`);
+      console.log(
+        `[InsiderDetector] Corrected account age for ${wallet}: ${minEstimatedAgeDays} days (${stats.totalTrades} trades)`,
+      );
     }
 
     // Win rate calculation (on closed positions)
     const closedPositions = positions.filter((p) => p.realizedPnl !== 0);
     const wins = closedPositions.filter((p) => p.realizedPnl > 0).length;
-    const winRate = closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE
-      ? wins / closedPositions.length
-      : 0;
+    const winRate =
+      closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE
+        ? wins / closedPositions.length
+        : 0;
 
     // Profit calculations
-    const realizedProfit = positions.reduce((sum, p) => sum + (p.realizedPnl || 0), 0);
-    const unrealizedProfit = positions.reduce((sum, p) => sum + (p.cashPnl || 0), 0);
+    const realizedProfit = positions.reduce(
+      (sum, p) => sum + (p.realizedPnl || 0),
+      0,
+    );
+    const unrealizedProfit = positions.reduce(
+      (sum, p) => sum + (p.cashPnl || 0),
+      0,
+    );
     const totalProfit = realizedProfit + unrealizedProfit;
     // Note: largestWin uses realizedPnl only (closed positions) to identify proven winning trades
     // totalProfit includes unrealized to catch current suspicious positions, but largestWin focuses on track record
-    const largestWin = positions.length > 0 ? Math.max(...positions.map(p => p.realizedPnl || 0)) : 0;
+    const largestWin =
+      positions.length > 0
+        ? Math.max(...positions.map((p) => p.realizedPnl || 0))
+        : 0;
 
     // ==========================================
     // SANITY CHECK: Filter out impossible/bad data
@@ -163,16 +185,24 @@ export async function analyzeTrader(
     // ==========================================
     const MAX_REALISTIC_PROFIT = 10_000_000; // $10M max realistic profit
     const MAX_REALISTIC_POSITION = 50_000_000; // $50M max position size
-    const largestPosition = positions.length > 0 ? Math.max(...positions.map(p => p.size || 0)) : 0;
+    const largestPosition =
+      positions.length > 0 ? Math.max(...positions.map((p) => p.size || 0)) : 0;
 
-    if (totalProfit > MAX_REALISTIC_PROFIT || largestPosition > MAX_REALISTIC_POSITION) {
-      console.log(`[InsiderDetector] Skipping ${wallet.slice(0, 10)} - unrealistic data (profit: $${totalProfit.toLocaleString()}, largest pos: $${largestPosition.toLocaleString()})`);
+    if (
+      totalProfit > MAX_REALISTIC_PROFIT ||
+      largestPosition > MAX_REALISTIC_POSITION
+    ) {
+      console.log(
+        `[InsiderDetector] Skipping ${wallet.slice(0, 10)} - unrealistic data (profit: $${totalProfit.toLocaleString()}, largest pos: $${largestPosition.toLocaleString()})`,
+      );
       return null; // Bad data, skip
     }
 
     // Skip accounts with 0 trades but huge positions (likely system accounts)
     if (stats.totalTrades === 0 && positions.length > 10) {
-      console.log(`[InsiderDetector] Skipping ${wallet.slice(0, 10)} - 0 trades but ${positions.length} positions (system account)`);
+      console.log(
+        `[InsiderDetector] Skipping ${wallet.slice(0, 10)} - 0 trades but ${positions.length} positions (system account)`,
+      );
       return null;
     }
 
@@ -185,34 +215,43 @@ export async function analyzeTrader(
     }
 
     // Position metrics
-    const avgPositionSize = positions.length > 0
-      ? positions.reduce((sum, p) => sum + (p.initialValue || 0), 0) / positions.length
-      : 0;
+    const avgPositionSize =
+      positions.length > 0
+        ? positions.reduce((sum, p) => sum + (p.initialValue || 0), 0) /
+          positions.length
+        : 0;
 
     // Trade pattern metrics
-    const buys = trades.filter(t => t.side === "BUY").length;
-    const sells = trades.filter(t => t.side === "SELL").length;
+    const buys = trades.filter((t) => t.side === "BUY").length;
+    const sells = trades.filter((t) => t.side === "SELL").length;
     const buyToSellRatio = sells > 0 ? buys / sells : buys;
-    const tradesPerDay = accountAgeDays > 0 ? stats.totalTrades / accountAgeDays : stats.totalTrades;
+    const tradesPerDay =
+      accountAgeDays > 0
+        ? stats.totalTrades / accountAgeDays
+        : stats.totalTrades;
 
     // Recent activity
     const oneDayAgo = Date.now() / 1000 - 86400;
-    const recentTrades = trades.filter(t => t.timestamp > oneDayAgo).length;
+    const recentTrades = trades.filter((t) => t.timestamp > oneDayAgo).length;
     const recentActivitySpike = recentTrades > 10;
 
     // Largest single trade
-    const largestTrade = trades.length > 0 ? Math.max(...trades.map((t) => t.usdcSize || 0)) : 0;
+    const largestTrade =
+      trades.length > 0 ? Math.max(...trades.map((t) => t.usdcSize ?? 0)) : 0;
 
     // Count unique markets - prefer activity data, use positions as supplement
-    const uniqueMarketTitles = new Set(positions.map(p => p.title || '').filter(Boolean));
+    const uniqueMarketTitles = new Set(
+      positions.map((p) => p.title || "").filter(Boolean),
+    );
     const positionDiversityCount = uniqueMarketTitles.size;
 
     // Use the best available data: activity stats first, then position titles
-    const effectiveMarketCount = stats.uniqueMarkets.length > 0
-      ? stats.uniqueMarkets.length
-      : positionDiversityCount > 0
-        ? positionDiversityCount
-        : 1; // Assume at least 1 market if we're analyzing them
+    const effectiveMarketCount =
+      stats.uniqueMarkets.length > 0
+        ? stats.uniqueMarkets.length
+        : positionDiversityCount > 0
+          ? positionDiversityCount
+          : 1; // Assume at least 1 market if we're analyzing them
 
     // ==========================================
     // SCORING: Only additive, no deductions
@@ -320,7 +359,7 @@ export async function analyzeTrader(
         flags.push({
           type: "FRESH_WALLET",
           severity: "critical",
-          description: `Account created ${accountAgeDays} day${accountAgeDays === 1 ? '' : 's'} ago`,
+          description: `Account created ${accountAgeDays} day${accountAgeDays === 1 ? "" : "s"} ago`,
           weight: 26,
         });
         evidence.push({
@@ -370,7 +409,10 @@ export async function analyzeTrader(
         description: "Extreme concentration - single market focus",
         value: "1 market",
       });
-    } else if (effectiveMarketCount >= 1 && effectiveMarketCount <= THRESHOLDS.HIGHLY_CONCENTRATED_MAX_MARKETS) {
+    } else if (
+      effectiveMarketCount >= 1 &&
+      effectiveMarketCount <= THRESHOLDS.HIGHLY_CONCENTRATED_MAX_MARKETS
+    ) {
       flags.push({
         type: "CONCENTRATED_BETS",
         severity: "high",
@@ -382,7 +424,10 @@ export async function analyzeTrader(
         description: "Highly concentrated betting",
         value: `${effectiveMarketCount} markets`,
       });
-    } else if (effectiveMarketCount >= 1 && effectiveMarketCount <= THRESHOLDS.CONCENTRATED_MAX_MARKETS) {
+    } else if (
+      effectiveMarketCount >= 1 &&
+      effectiveMarketCount <= THRESHOLDS.CONCENTRATED_MAX_MARKETS
+    ) {
       flags.push({
         type: "CONCENTRATED_BETS",
         severity: "medium",
@@ -397,7 +442,10 @@ export async function analyzeTrader(
     }
 
     // 4. WIN RATE (insiders know outcomes)
-    if (winRate >= THRESHOLDS.PERFECT_WIN_RATE && closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE) {
+    if (
+      winRate >= THRESHOLDS.PERFECT_WIN_RATE &&
+      closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE
+    ) {
       flags.push({
         type: "HIGH_WIN_RATE",
         severity: "critical",
@@ -409,7 +457,10 @@ export async function analyzeTrader(
         description: "Statistically improbable perfect success",
         value: `${(winRate * 100).toFixed(0)}%`,
       });
-    } else if (winRate >= THRESHOLDS.SUSPICIOUS_WIN_RATE_MIN && closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE) {
+    } else if (
+      winRate >= THRESHOLDS.SUSPICIOUS_WIN_RATE_MIN &&
+      closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE
+    ) {
       flags.push({
         type: "HIGH_WIN_RATE",
         severity: "high",
@@ -421,7 +472,10 @@ export async function analyzeTrader(
         description: "Extremely high success rate",
         value: `${(winRate * 100).toFixed(0)}%`,
       });
-    } else if (winRate >= THRESHOLDS.HIGH_WIN_RATE_MIN && closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE) {
+    } else if (
+      winRate >= THRESHOLDS.HIGH_WIN_RATE_MIN &&
+      closedPositions.length >= THRESHOLDS.MIN_POSITIONS_FOR_WIN_RATE
+    ) {
       flags.push({
         type: "HIGH_WIN_RATE",
         severity: "medium",
@@ -510,7 +564,8 @@ export async function analyzeTrader(
     // 6. MARKET DOMINANCE (new!)
     // Flag wallets that control large % of a market's positions
     if (marketContext) {
-      const dominance = marketContext.walletDominance.get(wallet.toLowerCase()) || 0;
+      const dominance =
+        marketContext.walletDominance.get(wallet.toLowerCase()) || 0;
 
       if (dominance >= THRESHOLDS.DOMINANCE_EXTREME) {
         flags.push({
@@ -560,13 +615,19 @@ export async function analyzeTrader(
 
     // Account age penalty: older accounts are less suspicious
     if (accountAgeDays > 30) {
-      const agePenalty = Math.min(25, Math.floor((accountAgeDays - 30) / 30) * 10);
+      const agePenalty = Math.min(
+        25,
+        Math.floor((accountAgeDays - 30) / 30) * 10,
+      );
       totalPenalty += agePenalty;
     }
 
     // Trade count penalty: active traders are less suspicious
     if (stats.totalTrades > 100) {
-      const tradePenalty = Math.min(20, Math.floor((stats.totalTrades - 100) / 100) * 10);
+      const tradePenalty = Math.min(
+        20,
+        Math.floor((stats.totalTrades - 100) / 100) * 10,
+      );
       totalPenalty += tradePenalty;
     }
 
@@ -622,7 +683,7 @@ export async function analyzeTrader(
  */
 export async function analyzeMarketForInsiders(
   conditionId: string,
-  minRiskScore = 30
+  minRiskScore = 30,
 ): Promise<SuspectedInsider[]> {
   try {
     // Get top holders
@@ -637,17 +698,25 @@ export async function analyzeMarketForInsiders(
       for (const holder of response.holders) {
         wallets.add(holder.proxyWallet);
         // Track holdings for dominance calculation
-        const currentHolding = walletHoldings.get(holder.proxyWallet.toLowerCase()) || 0;
+        const currentHolding =
+          walletHoldings.get(holder.proxyWallet.toLowerCase()) || 0;
         const holdingValue = holder.amount; // This is the position size
-        walletHoldings.set(holder.proxyWallet.toLowerCase(), currentHolding + holdingValue);
+        walletHoldings.set(
+          holder.proxyWallet.toLowerCase(),
+          currentHolding + holdingValue,
+        );
         totalMarketValue += holdingValue;
       }
     }
 
     // Also get recent trades for market context (but don't add ALL traders to analysis)
-    const recentTrades = await dataApiClient.getMarketActivity(conditionId, 168); // 7 days
+    const recentTrades = await dataApiClient.getMarketActivity(
+      conditionId,
+      168,
+    ); // 7 days
     // Only add large traders from recent activity (over $1000)
-    const getTradeValue = (t: ActivityRecord) => t.usdcSize || (t.size * t.price) || 0;
+    const getTradeValue = (t: ActivityRecord) =>
+      t.usdcSize ?? t.size * t.price;
     for (const trade of recentTrades) {
       if (getTradeValue(trade) >= 1000) {
         wallets.add(trade.proxyWallet);
@@ -656,10 +725,15 @@ export async function analyzeMarketForInsiders(
 
     // Calculate market context for relative comparisons
     // Note: trades endpoint uses size * price for USD value, not usdcSize
-    const avgTradeSize = recentTrades.length > 0
-      ? recentTrades.reduce((sum, t) => sum + getTradeValue(t), 0) / recentTrades.length
-      : 0;
-    const totalVolume = recentTrades.reduce((sum, t) => sum + getTradeValue(t), 0);
+    const avgTradeSize =
+      recentTrades.length > 0
+        ? recentTrades.reduce((sum, t) => sum + getTradeValue(t), 0) /
+          recentTrades.length
+        : 0;
+    const totalVolume = recentTrades.reduce(
+      (sum, t) => sum + getTradeValue(t),
+      0,
+    );
 
     // Calculate wallet dominance (% of market each wallet controls)
     const walletDominance = new Map<string, number>();
@@ -677,8 +751,12 @@ export async function analyzeMarketForInsiders(
       walletDominance,
     };
 
-    console.log(`[InsiderDetector] Analyzing ${wallets.size} traders for market ${conditionId}`);
-    console.log(`[InsiderDetector] Market context: avg trade $${avgTradeSize.toFixed(0)}, ${recentTrades.length} trades, ${holdersResponse.reduce((s, r) => s + r.holders.length, 0)} holders`);
+    console.log(
+      `[InsiderDetector] Analyzing ${wallets.size} traders for market ${conditionId}`,
+    );
+    console.log(
+      `[InsiderDetector] Market context: avg trade $${avgTradeSize.toFixed(0)}, ${recentTrades.length} trades, ${holdersResponse.reduce((s, r) => s + r.holders.length, 0)} holders`,
+    );
 
     // Analyze traders with rate limiting
     const walletArray = Array.from(wallets);
@@ -688,19 +766,23 @@ export async function analyzeMarketForInsiders(
     for (let i = 0; i < walletArray.length; i += batchSize) {
       const batch = walletArray.slice(i, i + batchSize);
       const batchResults = await Promise.allSettled(
-        batch.map((wallet) => analyzeTrader(wallet, marketContext))
+        batch.map((wallet) => analyzeTrader(wallet, marketContext)),
       );
       // Extract successful results, treat failures as null
-      analyses.push(...batchResults.map(r => r.status === 'fulfilled' ? r.value : null));
+      analyses.push(
+        ...batchResults.map((r) => (r.status === "fulfilled" ? r.value : null)),
+      );
       if (i + batchSize < walletArray.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 
     // Filter: must be profitable (already done in analyzeTrader) and meet min score
     // Sort by PROFIT first (most important), then by risk score
     const suspected = analyses
-      .filter((a): a is SuspectedInsider => a !== null && a.riskScore >= minRiskScore)
+      .filter(
+        (a): a is SuspectedInsider => a !== null && a.riskScore >= minRiskScore,
+      )
       .sort((a, b) => {
         // Primary sort: profit (descending)
         if (b.totalProfit !== a.totalProfit) {
@@ -711,7 +793,9 @@ export async function analyzeMarketForInsiders(
       })
       .slice(0, 10);
 
-    console.log(`[InsiderDetector] Found ${suspected.length} suspected insiders (profitable only)`);
+    console.log(
+      `[InsiderDetector] Found ${suspected.length} suspected insiders (profitable only)`,
+    );
 
     return suspected;
   } catch (error) {
@@ -738,8 +822,9 @@ export async function quickSuspicionCheck(wallet: string): Promise<{
     }
 
     // Calculate profit first
-    const totalProfit = positions.reduce((sum, p) =>
-      sum + (p.realizedPnl || 0) + (p.cashPnl || 0), 0
+    const totalProfit = positions.reduce(
+      (sum, p) => sum + (p.realizedPnl || 0) + (p.cashPnl || 0),
+      0,
     );
 
     // Not profitable = not suspicious
@@ -754,7 +839,7 @@ export async function quickSuspicionCheck(wallet: string): Promise<{
     if (trades.length <= 10 && totalProfit >= 5000) {
       return {
         isSuspicious: true,
-        reason: `New account (${trades.length} trades) with $${totalProfit.toLocaleString()} profit`
+        reason: `New account (${trades.length} trades) with $${totalProfit.toLocaleString()} profit`,
       };
     }
 
@@ -762,12 +847,12 @@ export async function quickSuspicionCheck(wallet: string): Promise<{
     if (stats.uniqueMarkets.length <= 3 && totalProfit >= 5000) {
       return {
         isSuspicious: true,
-        reason: `Concentrated bets (${stats.uniqueMarkets.length} markets) with $${totalProfit.toLocaleString()} profit`
+        reason: `Concentrated bets (${stats.uniqueMarkets.length} markets) with $${totalProfit.toLocaleString()} profit`,
       };
     }
 
     return { isSuspicious: false };
-  } catch (error) {
+  } catch (_error) {
     return { isSuspicious: false };
   }
 }

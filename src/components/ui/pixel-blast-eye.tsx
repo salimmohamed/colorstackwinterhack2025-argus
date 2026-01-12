@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 interface PixelBlastEyeProps {
   className?: string;
@@ -42,7 +42,9 @@ function smoothNoise(x: number, y: number): number {
     n10 = hash(ix + 1, iy);
   const n01 = hash(ix, iy + 1),
     n11 = hash(ix + 1, iy + 1);
-  return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
+  return (
+    (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy
+  );
 }
 
 function fbm(x: number, y: number, octaves = 4): number {
@@ -124,7 +126,7 @@ export function PixelBlastEye({
       gazeOffsetX: number,
       gazeOffsetY: number,
       cols: number,
-      rows: number
+      rows: number,
     ): { intensity: number; blend: number } => {
       const dx = x - centerX;
       const dy = y - centerY;
@@ -144,9 +146,11 @@ export function PixelBlastEye({
       const dyIris = y - irisCenterY;
       const distFromIris = Math.sqrt(dxIris * dxIris + dyIris * dyIris);
 
-      const almondFactor = Math.pow(Math.abs(dx / eyeWidth), 2.2);
+      const almondFactor = Math.abs(dx / eyeWidth) ** 2.2;
       const adjustedEyeHeight = eyeHeight * (1 - almondFactor * 0.7);
-      const almondDist = Math.sqrt((dx / eyeWidth) ** 2 + (dy / adjustedEyeHeight) ** 2);
+      const almondDist = Math.sqrt(
+        (dx / eyeWidth) ** 2 + (dy / adjustedEyeHeight) ** 2,
+      );
 
       let intensity = 0;
       let blend = 0;
@@ -168,14 +172,20 @@ export function PixelBlastEye({
           const pupilFade = distFromIris / pupilRadius;
           intensity = 0.02 + pupilFade * 0.04;
         } else if (distFromIris < irisRadius && insideEye) {
-          const irisPos = (distFromIris - pupilRadius) / (irisRadius - pupilRadius);
+          const irisPos =
+            (distFromIris - pupilRadius) / (irisRadius - pupilRadius);
           const angle = Math.atan2(dyIris, dxIris);
           const striation = Math.sin(angle * 32 + time * 0.3) * 0.5 + 0.5;
           const striation2 = Math.sin(angle * 48 - time * 0.2) * 0.5 + 0.5;
           const collarette = Math.abs(irisPos - 0.4) < 0.1 ? 0.06 : 0;
           const limbalDark = irisPos > 0.85 ? (irisPos - 0.85) * 1.5 : 0;
           intensity =
-            0.1 + irisPos * 0.12 + striation * 0.04 + striation2 * 0.025 + collarette - limbalDark * 0.08;
+            0.1 +
+            irisPos * 0.12 +
+            striation * 0.04 +
+            striation2 * 0.025 +
+            collarette -
+            limbalDark * 0.08;
         } else if (insideEye) {
           const scleraFade = almondDist;
           intensity = 0.06 + (1 - scleraFade) * 0.04;
@@ -188,63 +198,73 @@ export function PixelBlastEye({
 
       return { intensity, blend };
     },
-    []
+    [],
   );
 
   // Update gaze
-  const updateGaze = useCallback((deltaTime: number, state: typeof stateRef.current) => {
-    const idleThreshold = 2;
-    const timeSinceMouseMove = state.time - state.lastMouseMoveTime;
+  const updateGaze = useCallback(
+    (deltaTime: number, state: typeof stateRef.current) => {
+      const idleThreshold = 2;
+      const timeSinceMouseMove = state.time - state.lastMouseMoveTime;
 
-    if (state.isMouseActive && timeSinceMouseMove < idleThreshold) {
-      const canvasCenterX = state.width / 2;
-      const canvasCenterY = state.height / 2;
-      state.targetGazeX = (state.mouseX - canvasCenterX) / (state.width / 2);
-      state.targetGazeY = (state.mouseY - canvasCenterY) / (state.height / 2);
-      const mag = Math.sqrt(state.targetGazeX * state.targetGazeX + state.targetGazeY * state.targetGazeY);
-      if (mag > 1) {
-        state.targetGazeX /= mag;
-        state.targetGazeY /= mag;
+      if (state.isMouseActive && timeSinceMouseMove < idleThreshold) {
+        const canvasCenterX = state.width / 2;
+        const canvasCenterY = state.height / 2;
+        state.targetGazeX = (state.mouseX - canvasCenterX) / (state.width / 2);
+        state.targetGazeY = (state.mouseY - canvasCenterY) / (state.height / 2);
+        const mag = Math.sqrt(
+          state.targetGazeX * state.targetGazeX +
+            state.targetGazeY * state.targetGazeY,
+        );
+        if (mag > 1) {
+          state.targetGazeX /= mag;
+          state.targetGazeY /= mag;
+        }
+      } else {
+        state.autonomousGazeTimer += deltaTime;
+        if (state.autonomousGazeTimer > 2 + Math.random() * 3) {
+          state.autonomousGazeTimer = 0;
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 0.3 + Math.random() * 0.5;
+          state.targetGazeX = Math.cos(angle) * distance;
+          state.targetGazeY = Math.sin(angle) * distance * 0.6;
+        }
       }
-    } else {
-      state.autonomousGazeTimer += deltaTime;
-      if (state.autonomousGazeTimer > 2 + Math.random() * 3) {
-        state.autonomousGazeTimer = 0;
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 0.3 + Math.random() * 0.5;
-        state.targetGazeX = Math.cos(angle) * distance;
-        state.targetGazeY = Math.sin(angle) * distance * 0.6;
-      }
-    }
 
-    const lerpSpeed = 3;
-    state.gazeX += (state.targetGazeX - state.gazeX) * lerpSpeed * deltaTime;
-    state.gazeY += (state.targetGazeY - state.gazeY) * lerpSpeed * deltaTime;
-  }, []);
+      const lerpSpeed = 3;
+      state.gazeX += (state.targetGazeX - state.gazeX) * lerpSpeed * deltaTime;
+      state.gazeY += (state.targetGazeY - state.gazeY) * lerpSpeed * deltaTime;
+    },
+    [],
+  );
 
   // Ripple effect
-  const getRippleEffect = useCallback((x: number, y: number, time: number, ripples: Ripple[]): number => {
-    let effect = 0;
-    for (let i = ripples.length - 1; i >= 0; i--) {
-      const ripple = ripples[i];
-      const age = time - ripple.startTime;
-      if (age > 3) {
-        ripples.splice(i, 1);
-        continue;
+  const getRippleEffect = useCallback(
+    (x: number, y: number, time: number, ripples: Ripple[]): number => {
+      let effect = 0;
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const ripple = ripples[i];
+        const age = time - ripple.startTime;
+        if (age > 3) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        const dx = x - ripple.x,
+          dy = y - ripple.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const waveRadius = age * 80;
+        const distFromWave = Math.abs(dist - waveRadius);
+        if (distFromWave < 25) {
+          const waveIntensity = 1 - distFromWave / 25;
+          const decay = Math.exp(-age * 1.2);
+          effect +=
+            waveIntensity * decay * 0.4 * Math.sin(dist * 0.15 - age * 8);
+        }
       }
-      const dx = x - ripple.x,
-        dy = y - ripple.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const waveRadius = age * 80;
-      const distFromWave = Math.abs(dist - waveRadius);
-      if (distFromWave < 25) {
-        const waveIntensity = 1 - distFromWave / 25;
-        const decay = Math.exp(-age * 1.2);
-        effect += waveIntensity * decay * 0.4 * Math.sin(dist * 0.15 - age * 8);
-      }
-    }
-    return effect;
-  }, []);
+      return effect;
+    },
+    [],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -279,8 +299,8 @@ export function PixelBlastEye({
       ctx.fillStyle = "#030303";
       ctx.fillRect(0, 0, state.width, state.height);
 
-      const centerX = state.cols / 2 + (state.cols * eyeOffsetX);
-      const centerY = state.rows / 2 + (state.rows * eyeOffsetY);
+      const centerX = state.cols / 2 + state.cols * eyeOffsetX;
+      const centerY = state.rows / 2 + state.rows * eyeOffsetY;
       const { r, g, b } = colorRgb.current;
 
       for (let i = 0; i < state.cols; i++) {
@@ -290,10 +310,19 @@ export function PixelBlastEye({
 
           const bayerThreshold = BAYER_8x8[j % 8][i % 8];
 
-          const noiseVal = fbm(i * 0.03 + state.time * 0.1, j * 0.03 + state.time * 0.08, 4);
-          const flickerNoise = fbm(i * 0.1 + state.time * 0.5, j * 0.1 - state.time * 0.3, 2);
+          const noiseVal = fbm(
+            i * 0.03 + state.time * 0.1,
+            j * 0.03 + state.time * 0.08,
+            4,
+          );
+          const flickerNoise = fbm(
+            i * 0.1 + state.time * 0.5,
+            j * 0.1 - state.time * 0.3,
+            2,
+          );
 
-          const bgOpacity = 0.025 + (noiseVal - 0.5) * 0.03 + (flickerNoise - 0.5) * 0.015;
+          const bgOpacity =
+            0.025 + (noiseVal - 0.5) * 0.03 + (flickerNoise - 0.5) * 0.015;
 
           const { intensity: eyeIntensity, blend } = getEyeIntensityWithBlend(
             i,
@@ -304,20 +333,23 @@ export function PixelBlastEye({
             state.gazeX,
             state.gazeY,
             state.cols,
-            state.rows
+            state.rows,
           );
 
-          let opacity = bgOpacity * (1 - blend) + (eyeIntensity + (noiseVal - 0.5) * 0.06) * blend;
+          let opacity =
+            bgOpacity * (1 - blend) +
+            (eyeIntensity + (noiseVal - 0.5) * 0.06) * blend;
 
           opacity += getRippleEffect(x, y, state.time, state.ripples);
 
-          const ditheredOpacity = opacity > bayerThreshold * 0.4 ? opacity : opacity * 0.25;
+          const ditheredOpacity =
+            opacity > bayerThreshold * 0.4 ? opacity : opacity * 0.25;
           const finalOpacity = Math.max(0.01, Math.min(0.45, ditheredOpacity));
 
           const dist = Math.sqrt((i - centerX) ** 2 + (j - centerY) ** 2);
           const irisRadius = Math.min(state.cols, state.rows) * 0.15;
           // Use noise-based variation instead of Math.random() for consistent results
-          const colorWarmth = dist < irisRadius ? 1 : 0.9 + (flickerNoise * 0.08);
+          const colorWarmth = dist < irisRadius ? 1 : 0.9 + flickerNoise * 0.08;
 
           ctx.fillStyle = `rgba(${r}, ${Math.floor(g * colorWarmth)}, ${b}, ${finalOpacity})`;
           ctx.fillRect(x, y, pixelSize, pixelSize);
@@ -366,7 +398,15 @@ export function PixelBlastEye({
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [cell, pixelSize, getEyeIntensityWithBlend, updateGaze, getRippleEffect, eyeOffsetX, eyeOffsetY]);
+  }, [
+    cell,
+    pixelSize,
+    getEyeIntensityWithBlend,
+    updateGaze,
+    getRippleEffect,
+    eyeOffsetX,
+    eyeOffsetY,
+  ]);
 
   return (
     <div ref={containerRef} className={`w-full h-full ${className}`}>

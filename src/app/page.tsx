@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import Link from "next/link";
 import { PixelBlastEye } from "@/components/ui/pixel-blast-eye";
+import { api } from "../../convex/_generated/api";
 
 export default function Home() {
   const markets = useQuery(api.markets.listActive, {});
@@ -13,7 +13,10 @@ export default function Home() {
       {/* Left side - Text content (40%) */}
       <div className="w-[40%] min-h-screen relative z-10 bg-[var(--background)]">
         <div className="flex flex-col min-h-screen p-12 pr-16">
-          <header className="mb-8 animate-fadeSlideUp" style={{ animationDelay: "0s" }}>
+          <header
+            className="mb-8 animate-fadeSlideUp"
+            style={{ animationDelay: "0s" }}
+          >
             <nav className="flex gap-6">
               <Link
                 href="/markets"
@@ -54,7 +57,8 @@ export default function Home() {
                 className="text-sm leading-7 text-[var(--text-dim)] max-w-[320px] mt-3 animate-fadeSlideUp"
                 style={{ animationDelay: "0.6s" }}
               >
-                Autonomous detection of insider trading patterns across political prediction markets.
+                Autonomous detection of insider trading patterns across
+                political prediction markets.
               </p>
             </div>
 
@@ -91,13 +95,19 @@ export default function Home() {
               style={{ animationDelay: "1s" }}
             >
               View Monitored Markets
-              <span className="transition-transform group-hover:translate-x-1">→</span>
+              <span className="transition-transform group-hover:translate-x-1">
+                →
+              </span>
             </Link>
           </main>
 
-          <footer className="pt-8 animate-fadeSlideUp" style={{ animationDelay: "1.2s" }}>
+          <footer
+            className="pt-8 animate-fadeSlideUp"
+            style={{ animationDelay: "1.2s" }}
+          >
             <p className="font-serif italic text-sm text-[var(--text-dim)] leading-6">
-              &ldquo;He had a hundred eyes, of which only two would sleep at a time.&rdquo;
+              &ldquo;He had a hundred eyes, of which only two would sleep at a
+              time.&rdquo;
             </p>
             <p className="text-[0.65rem] text-[var(--text-muted)] mt-1 tracking-[0.08em]">
               — Ovid
@@ -113,7 +123,10 @@ export default function Home() {
         {/* Edge fade into content panel */}
         <div
           className="absolute top-0 left-0 w-[120px] h-full pointer-events-none z-[5]"
-          style={{ background: "linear-gradient(90deg, var(--background) 0%, transparent 100%)" }}
+          style={{
+            background:
+              "linear-gradient(90deg, var(--background) 0%, transparent 100%)",
+          }}
         />
 
         {/* Scanlines */}
@@ -137,7 +150,8 @@ export default function Home() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse at center, transparent 20%, var(--background) 80%)",
+            background:
+              "radial-gradient(ellipse at center, transparent 20%, var(--background) 80%)",
           }}
         />
       </div>
