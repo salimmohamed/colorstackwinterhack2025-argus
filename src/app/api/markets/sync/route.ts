@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { gammaClient, type GammaEvent, type GammaMarket } from "@/lib/server/polymarket/gamma";
 import { ConvexHttpClient } from "convex/browser";
+import { type NextRequest, NextResponse } from "next/server";
+import {
+  type GammaEvent,
+  type GammaMarket,
+  gammaClient,
+} from "@/lib/server/polymarket/gamma";
 import { api } from "../../../../../convex/_generated/api";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -11,12 +15,14 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 function extractCandidateName(market: GammaMarket): string {
   if (market.question) {
     // Clean the question - remove trailing numbers that aren't years (like IDs)
-    let cleanedQuestion = market.question
+    const cleanedQuestion = market.question
       .replace(/\s+\d{2,6}\s+\d{2,6}$/i, "") // Remove trailing number pairs like "344 142"
       .replace(/\s+\d{6,}$/i, "") // Remove trailing long numbers
       .trim();
 
-    const willMatch = cleanedQuestion.match(/^Will\s+(.+?)\s+(win|become|be)\b/i);
+    const willMatch = cleanedQuestion.match(
+      /^Will\s+(.+?)\s+(win|become|be)\b/i,
+    );
     if (willMatch) {
       return willMatch[1].trim();
     }
@@ -52,7 +58,10 @@ function extractCandidateName(market: GammaMarket): string {
 function isPlaceholderMarket(market: GammaMarket): boolean {
   if (!market.question) return false;
   const q = market.question.toLowerCase();
-  return /\bperson\s+[a-z]{1,2}\b/i.test(market.question) || q.includes("another person");
+  return (
+    /\bperson\s+[a-z]{1,2}\b/i.test(market.question) ||
+    q.includes("another person")
+  );
 }
 
 /**
@@ -76,7 +85,12 @@ function convertEventToConvexMarket(event: GammaEvent) {
       if (priceStr && priceStr.trim() !== "") {
         const parsed = parseFloat(priceStr);
         // Only use if it's a valid number between 0 and 1
-        if (!isNaN(parsed) && isFinite(parsed) && parsed >= 0 && parsed <= 1) {
+        if (
+          !Number.isNaN(parsed) &&
+          Number.isFinite(parsed) &&
+          parsed >= 0 &&
+          parsed <= 1
+        ) {
           price = parsed;
         }
       }
@@ -121,7 +135,9 @@ export async function POST(request: NextRequest) {
       console.log(`[Sync] Deleted ${result.deleted} old markets`);
     }
 
-    const events = (await (gammaClient as any).getTopPoliticalEvents(limit)) as GammaEvent[];
+    const events = (await (gammaClient as any).getTopPoliticalEvents(
+      limit,
+    )) as GammaEvent[];
 
     console.log(`[Sync] Found ${events.length} political events`);
 
@@ -138,10 +154,16 @@ export async function POST(request: NextRequest) {
             id,
           };
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Unknown error";
-          return { slug: event.slug, title: event.title, success: false, error: message };
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+          return {
+            slug: event.slug,
+            title: event.title,
+            success: false,
+            error: message,
+          };
         }
-      })
+      }),
     );
 
     const successful = results.filter((r) => r.success).length;
@@ -162,14 +184,16 @@ export async function POST(request: NextRequest) {
         success: false,
         error: message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function GET() {
   try {
-    const events = (await (gammaClient as any).getTopPoliticalEvents(10)) as GammaEvent[];
+    const events = (await (gammaClient as any).getTopPoliticalEvents(
+      10,
+    )) as GammaEvent[];
 
     return NextResponse.json({
       message: "Top political events that would be synced",
