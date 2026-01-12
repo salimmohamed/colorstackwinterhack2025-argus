@@ -715,8 +715,7 @@ export async function analyzeMarketForInsiders(
       168,
     ); // 7 days
     // Only add large traders from recent activity (over $1000)
-    const getTradeValue = (t: ActivityRecord) =>
-      t.usdcSize ?? t.size * t.price;
+    const getTradeValue = (t: ActivityRecord) => t.usdcSize ?? t.size * t.price;
     for (const trade of recentTrades) {
       if (getTradeValue(trade) >= 1000) {
         wallets.add(trade.proxyWallet);

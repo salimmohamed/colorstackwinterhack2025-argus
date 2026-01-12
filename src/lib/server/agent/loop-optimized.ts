@@ -133,19 +133,28 @@ Be efficient - skip accounts you've already analyzed.`;
         };
       }
 
-      // Keep conversation manageable while preserving tool use cycles
+      // Keep conversation manageable while preserving complete tool use cycles
       // Bedrock requires: user, assistant(tool_use), user(tool_result) to stay together
       if (recentMessages.length > 7) {
-        // Find safe slice point: after a user message (tool_result or regular response)
-        // Keep initial prompt + last 6 messages (3 complete exchanges)
-        const keptMessages = recentMessages.slice(-6);
-        // Verify first kept message after initial is a user message
-        if (keptMessages[0]?.role === "assistant") {
-          // Broken pair - shift by 1 to start on user message
-          recentMessages = [recentMessages[0], ...recentMessages.slice(-5)];
-        } else {
-          recentMessages = [recentMessages[0], ...keptMessages];
+        // Find the last safe slice point that keeps complete exchanges
+        // We need to keep pairs: (assistant + user) or start fresh after a user message
+        let sliceStart = recentMessages.length - 6;
+
+        // Walk backwards to find a safe starting point (must be a user message)
+        while (sliceStart > 1 && recentMessages[sliceStart]?.role === "assistant") {
+          sliceStart++;
         }
+
+        // Ensure we keep at least 4 messages for context
+        if (recentMessages.length - sliceStart < 4) {
+          sliceStart = Math.max(1, recentMessages.length - 4);
+          // Adjust again if we landed on assistant
+          if (recentMessages[sliceStart]?.role === "assistant") {
+            sliceStart++;
+          }
+        }
+
+        recentMessages = [recentMessages[0], ...recentMessages.slice(sliceStart)];
       }
 
       const response = await client.converse({

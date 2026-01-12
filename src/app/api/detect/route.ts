@@ -69,7 +69,7 @@ function getHighestSeverity(
   return "low";
 }
 
-async function saveSuspect(suspect: SuspectedInsider, _marketId?: string) {
+async function saveSuspect(suspect: SuspectedInsider) {
   const accountId = await convex.mutation(api.accounts.upsert, {
     address: suspect.wallet,
     displayName: suspect.displayName,
@@ -135,7 +135,7 @@ async function runRulesDetection(markets: any[], minRiskScore: number) {
 
       for (const suspect of suspects) {
         try {
-          const result = await saveSuspect(suspect, market._id);
+          const result = await saveSuspect(suspect);
           savedResults.push({
             wallet: result.wallet,
             riskScore: result.riskScore,

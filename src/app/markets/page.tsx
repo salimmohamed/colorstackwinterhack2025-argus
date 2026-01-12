@@ -97,6 +97,7 @@ export default function MarketsPage() {
             </p>
           </div>
           <button
+            type="button"
             onClick={syncMarkets}
             disabled={isSyncing}
             className={`flex items-center gap-2 px-4 py-2 bg-transparent border border-[#252525] rounded text-[#888] text-xs transition-all ${
@@ -128,6 +129,7 @@ export default function MarketsPage() {
                 Add a Polymarket market to start monitoring for insider trading.
               </p>
               <button
+                type="button"
                 onClick={syncMarkets}
                 className="px-4 py-2 bg-transparent border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
               >
@@ -156,7 +158,7 @@ export default function MarketsPage() {
                     .filter((outcome) => outcome.price > 0.005) // Hide outcomes with <1% chance
                     .map((outcome, i) => (
                       <div
-                        key={i}
+                        key={outcome.tokenId}
                         className={`flex justify-between items-center px-3 py-2 bg-[#111] border rounded relative overflow-hidden ${
                           i === 0
                             ? "border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.05)]"

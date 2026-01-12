@@ -41,8 +41,8 @@ export default function RootLayout({
           target="_blank"
           rel="noopener noreferrer"
           className="fixed bottom-6 right-6 z-50 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
-          aria-label="View source on GitHub"
         >
+          <span className="sr-only">View source on GitHub</span>
           <svg
             width="24"
             height="24"

@@ -93,7 +93,15 @@ function SuspectCard({
   return (
     <div className="animate-fadeSlideUp" style={{ animationDelay: delay }}>
       <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
         className={`
           bg-[#0a0a0a] border cursor-pointer transition-all
           ${isHighPriority ? "border-[rgba(245,158,11,0.3)]" : "border-[#1a1a1a]"}

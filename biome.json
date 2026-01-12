@@ -18,6 +18,9 @@
       },
       "style": {
         "noNonNullAssertion": "warn"
+      },
+      "a11y": {
+        "useSemanticElements": "warn"
       }
     }
   },
