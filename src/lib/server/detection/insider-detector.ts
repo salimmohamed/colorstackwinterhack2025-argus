@@ -153,7 +153,7 @@ export async function analyzeTrader(
     const realizedProfit = positions.reduce((sum, p) => sum + (p.realizedPnl || 0), 0);
     const unrealizedProfit = positions.reduce((sum, p) => sum + (p.cashPnl || 0), 0);
     const totalProfit = realizedProfit + unrealizedProfit;
-    const largestWin = Math.max(0, ...positions.map(p => p.realizedPnl || 0));
+    const largestWin = positions.length > 0 ? Math.max(...positions.map(p => p.realizedPnl || 0)) : 0;
 
     // ==========================================
     // SANITY CHECK: Filter out impossible/bad data
@@ -161,7 +161,7 @@ export async function analyzeTrader(
     // ==========================================
     const MAX_REALISTIC_PROFIT = 10_000_000; // $10M max realistic profit
     const MAX_REALISTIC_POSITION = 50_000_000; // $50M max position size
-    const largestPosition = Math.max(0, ...positions.map(p => p.size || 0));
+    const largestPosition = positions.length > 0 ? Math.max(...positions.map(p => p.size || 0)) : 0;
 
     if (totalProfit > MAX_REALISTIC_PROFIT || largestPosition > MAX_REALISTIC_POSITION) {
       console.log(`[InsiderDetector] Skipping ${wallet.slice(0, 10)} - unrealistic data (profit: $${totalProfit.toLocaleString()}, largest pos: $${largestPosition.toLocaleString()})`);
@@ -199,15 +199,18 @@ export async function analyzeTrader(
     const recentActivitySpike = recentTrades > 10;
 
     // Largest single trade
-    const largestTrade = Math.max(...trades.map((t) => t.usdcSize || 0));
+    const largestTrade = trades.length > 0 ? Math.max(...trades.map((t) => t.usdcSize || 0)) : 0;
 
-    // Count unique markets from POSITIONS (more reliable than activity)
-    // This is the real measure of diversification
+    // Count unique markets - prefer activity data, use positions as supplement
     const uniqueMarketTitles = new Set(positions.map(p => p.title || '').filter(Boolean));
-    const positionDiversityCount = uniqueMarketTitles.size || positions.length;
+    const positionDiversityCount = uniqueMarketTitles.size;
 
-    // Use position diversity if activity shows fewer markets (fallback)
-    const effectiveMarketCount = Math.max(stats.uniqueMarkets.length, positionDiversityCount > 10 ? positionDiversityCount : 0);
+    // Use the best available data: activity stats first, then position titles
+    const effectiveMarketCount = stats.uniqueMarkets.length > 0
+      ? stats.uniqueMarkets.length
+      : positionDiversityCount > 0
+        ? positionDiversityCount
+        : 1; // Assume at least 1 market if we're analyzing them
 
     // ==========================================
     // SCORING: Only additive, no deductions
@@ -682,10 +685,11 @@ export async function analyzeMarketForInsiders(
 
     for (let i = 0; i < walletArray.length; i += batchSize) {
       const batch = walletArray.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
+      const batchResults = await Promise.allSettled(
         batch.map((wallet) => analyzeTrader(wallet, marketContext))
       );
-      analyses.push(...batchResults);
+      // Extract successful results, treat failures as null
+      analyses.push(...batchResults.map(r => r.status === 'fulfilled' ? r.value : null));
       if (i + batchSize < walletArray.length) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }

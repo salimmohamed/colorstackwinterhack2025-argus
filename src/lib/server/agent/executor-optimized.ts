@@ -209,7 +209,7 @@ export async function fetchAccountDataOptimized(
 	if (largest >= 5000) flags.push("WHALE_TRADE");
 
 	const result: CompressedAccountData = {
-		addr: address.slice(0, 10),
+		addr: address, // Store full address, truncate only for display
 		name: trades[0]?.name || trades[0]?.pseudonym,
 		age: accountAge,
 		trades: trades.length,
@@ -304,20 +304,19 @@ export async function flagSuspiciousAccountOptimized(params: {
 	console.log("[Agent] FLAG:", params.severity, params.address.slice(0, 10), params.title);
 
 	try {
-		// Get account data for full address and stats
+		// Get account data from cache
 		const accountData = accountCache.get(params.address.toLowerCase())?.data;
-		const fullAddress = accountData?.addr?.length === 10
-			? params.address // Use provided address if truncated in cache
-			: params.address;
+		const fullAddress = accountData?.addr || params.address;
 
 		// Upsert account
+		const metrics = params.evidence?.metrics as Record<string, unknown> | undefined;
 		const accountId = await convex.mutation(api.accounts.upsert, {
 			address: fullAddress.toLowerCase(),
-			displayName: accountData?.name || null,
+			displayName: accountData?.name || undefined,
 			totalTrades: accountData?.trades || 0,
 			totalVolume: accountData?.vol || 0,
 			winRate: accountData?.winRate || 0,
-			riskScore: params.evidence?.metrics?.riskScore as number || 50,
+			riskScore: (metrics?.riskScore as number) || 50,
 			flags: accountData?.flags || [params.signalType],
 		});
 

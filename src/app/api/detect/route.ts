@@ -67,7 +67,7 @@ async function saveSuspect(suspect: SuspectedInsider, marketId?: string) {
 
   await convex.mutation(api.alerts.create, {
     accountId,
-    marketId: marketId as any,
+    marketId: undefined, // TODO: Look up proper Convex market ID if needed
     severity: getHighestSeverity(suspect.flags),
     signalType: mapFlagToSignalType(primaryFlag),
     title,
@@ -186,12 +186,12 @@ export async function POST(request: NextRequest) {
 
     // Run AI detection
     if (mode === "ai" || mode === "both") {
-      // Check if AWS credentials are configured
+      // Check if AWS credentials are configured (don't expose details in response)
       if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
         console.warn(`[Detect] AI mode requested but AWS credentials not configured`);
         response.ai = {
           success: false,
-          error: "AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.",
+          error: "AI detection not available",
         };
       } else {
         console.log(`[Detect] Running AI agent on markets: ${marketIds.join(", ")}`);
@@ -213,16 +213,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   const mode = getDetectionMode();
-  const hasAWSCredentials = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
 
   return NextResponse.json({
     status: "ready",
     currentMode: mode,
-    awsConfigured: hasAWSCredentials,
     modes: {
-      rules: "Rule-based detection only (no AWS needed)",
-      ai: "AI agent only (requires AWS credentials)",
-      both: "Run both detection methods",
+      rules: "Rule-based detection",
+      ai: "AI-powered detection",
+      both: "Combined detection",
     },
     usage: {
       endpoint: "POST /api/detect",
@@ -232,6 +230,5 @@ export async function GET() {
         mode: "Override detection mode for this request (optional)",
       },
     },
-    switchMode: "Set DETECTION_MODE in .env.local to: 'ai', 'rules', or 'both'",
   });
 }

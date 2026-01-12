@@ -114,9 +114,17 @@ export class BedrockClient {
 				};
 			} catch (error: any) {
 				lastError = error;
-				if (error.name === "ThrottlingException" || error.message?.includes("Too many requests")) {
+				// Check for retryable errors: throttling, service unavailable, rate limits
+				const isRetryable =
+					error.name === "ThrottlingException" ||
+					error.name === "ServiceUnavailableException" ||
+					error.name === "RequestLimitExceeded" ||
+					error.message?.includes("Too many requests") ||
+					error.message?.includes("Service Unavailable");
+
+				if (isRetryable) {
 					const delay = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s
-					console.log(`[Bedrock] Rate limited, retrying in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries})`);
+					console.log(`[Bedrock] ${error.name || 'Error'}, retrying in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries})`);
 					await new Promise(r => setTimeout(r, delay));
 				} else {
 					throw error;

@@ -59,11 +59,11 @@ For EACH market:
 
 NEVER call fetch_market_activity twice on the same market. Move forward.
 
-## MANDATORY
-- You MUST flag at least one account per market
-- After investigating an account, FLAG IT immediately
-- Even low-risk accounts can be flagged as "low" severity
-- Do NOT get stuck in a loop fetching data without flagging`;
+## FLAGGING GUIDELINES
+- Only flag accounts with genuine suspicious signals (risk score >= 20)
+- After investigating an account with concerning patterns, flag it with appropriate severity
+- Do NOT flag accounts just to meet a quota - only flag genuine suspects
+- If a market has no suspicious activity, that's a valid finding`;
 
 
 export default SYSTEM_PROMPT_OPTIMIZED;

@@ -73,7 +73,7 @@ async function saveSuspect(suspect: SuspectedInsider, marketId?: string) {
   // Create the alert
   await convex.mutation(api.alerts.create, {
     accountId,
-    marketId: marketId as any,
+    marketId: undefined, // TODO: Look up proper Convex market ID if needed
     severity: getHighestSeverity(suspect.flags),
     signalType: mapFlagToSignalType(primaryFlag),
     title,
