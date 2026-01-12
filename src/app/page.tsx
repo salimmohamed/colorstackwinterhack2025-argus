@@ -27,12 +27,6 @@ export default function Home() {
               >
                 Suspects
               </Link>
-              <Link
-                href="/alerts"
-                className="text-[var(--text-dim)] text-xs tracking-[0.15em] uppercase py-2 border-b border-transparent hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all"
-              >
-                Alerts
-              </Link>
             </nav>
           </header>
 

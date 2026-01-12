@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${jetbrainsMono.variable} ${instrumentSerif.variable} antialiased`} suppressHydrationWarning>
         <ConvexClientProvider>{children}</ConvexClientProvider>
 

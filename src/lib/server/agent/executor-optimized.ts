@@ -11,10 +11,15 @@
 import { dataApiClient } from "../polymarket/data-api";
 import { gammaClient } from "../polymarket/gamma";
 import { subgraphClient } from "../polymarket/subgraph";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../../convex/_generated/api";
 import type { AlertEvidence } from "./types";
 
+// Convex client for saving flags
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
 // Minimum trade size to analyze (skip noise)
-const MIN_TRADE_SIZE_USD = 500;
+const MIN_TRADE_SIZE_USD = 50; // Lowered to catch more trades
 
 // Cache duration in milliseconds
 const CONTEXT_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
@@ -94,7 +99,9 @@ export async function fetchMarketActivityOptimized(
 
 	// Fetch only new trades (incremental)
 	const hoursBack = sinceTimestamp ? 168 : 72; // 7 days for incremental context
+	console.log(`[Executor] Fetching market activity for ${marketId.slice(0, 15)}...`);
 	const activity = await dataApiClient.getMarketActivity(marketId, hoursBack, MIN_TRADE_SIZE_USD);
+	console.log(`[Executor] Got ${activity.length} trades (min $${MIN_TRADE_SIZE_USD})`);
 
 	// Filter to only trades after checkpoint
 	const newTrades = sinceTimestamp
@@ -103,7 +110,13 @@ export async function fetchMarketActivityOptimized(
 
 	// Build context if not cached
 	if (!context) {
-		const market = await gammaClient.getMarketById(marketId);
+		// Gamma API may fail with condition IDs, handle gracefully
+		let market = null;
+		try {
+			market = await gammaClient.getMarketById(marketId);
+		} catch (e) {
+			console.log(`[Executor] Gamma API unavailable for ${marketId.slice(0, 10)}, using activity data`);
+		}
 		const totalVol = activity.reduce((s, t) => s + (t.usdcSize || t.size * t.price), 0);
 		const avgTrade = activity.length > 0 ? totalVol / activity.length : 0;
 
@@ -132,10 +145,11 @@ export async function fetchMarketActivityOptimized(
 	}
 
 	// Compress trades - only essential fields
+	// Keep full addresses so agent can use them for lookups
 	const compressedTrades: CompressedTradeData[] = newTrades
 		.slice(0, 50) // Limit to 50 most recent
 		.map(t => ({
-			addr: t.proxyWallet.slice(0, 10), // Truncate address
+			addr: t.proxyWallet, // Full address for agent to use
 			amt: Math.round(t.usdcSize || t.size * t.price),
 			side: t.side === "BUY" ? "B" : "S",
 			ts: t.timestamp,
@@ -263,7 +277,20 @@ export async function compareToMarketOptimized(
 }
 
 /**
- * Flag account - same as before but with compressed evidence
+ * Map signal type string to schema enum
+ */
+function mapSignalType(signalType: string): "new_account_large_bet" | "timing_correlation" | "statistical_improbability" | "account_obfuscation" | "disproportionate_bet" | "pattern_match" {
+	const type = signalType.toLowerCase();
+	if (type.includes("new") || type.includes("fresh")) return "new_account_large_bet";
+	if (type.includes("timing")) return "timing_correlation";
+	if (type.includes("win") || type.includes("statistical")) return "statistical_improbability";
+	if (type.includes("obfuscate") || type.includes("name")) return "account_obfuscation";
+	if (type.includes("large") || type.includes("whale") || type.includes("size")) return "disproportionate_bet";
+	return "pattern_match";
+}
+
+/**
+ * Flag account - SAVES TO CONVEX
  */
 export async function flagSuspiciousAccountOptimized(params: {
 	address: string;
@@ -275,7 +302,52 @@ export async function flagSuspiciousAccountOptimized(params: {
 	evidence?: AlertEvidence;
 }): Promise<{ success: boolean; id: string }> {
 	console.log("[Agent] FLAG:", params.severity, params.address.slice(0, 10), params.title);
-	return { success: true, id: `alert_${Date.now()}` };
+
+	try {
+		// Get account data for full address and stats
+		const accountData = accountCache.get(params.address.toLowerCase())?.data;
+		const fullAddress = accountData?.addr?.length === 10
+			? params.address // Use provided address if truncated in cache
+			: params.address;
+
+		// Upsert account
+		const accountId = await convex.mutation(api.accounts.upsert, {
+			address: fullAddress.toLowerCase(),
+			displayName: accountData?.name || null,
+			totalTrades: accountData?.trades || 0,
+			totalVolume: accountData?.vol || 0,
+			winRate: accountData?.winRate || 0,
+			riskScore: params.evidence?.metrics?.riskScore as number || 50,
+			flags: accountData?.flags || [params.signalType],
+		});
+
+		// Create alert (marketId omitted - would need Convex ID lookup)
+		await convex.mutation(api.alerts.create, {
+			accountId,
+			// Don't pass marketId - it's a condition ID, not a Convex ID
+			severity: params.severity,
+			signalType: mapSignalType(params.signalType),
+			title: params.title,
+			description: params.reasoning,
+			evidence: {
+				metrics: params.evidence?.metrics || {
+					riskScore: 50,
+					totalProfit: accountData?.pnl || 0,
+					totalVolume: accountData?.vol || 0,
+					winRate: accountData?.winRate || 0,
+					accountAgeDays: accountData?.age || 0,
+					totalTrades: accountData?.trades || 0,
+				},
+				reasoning: params.reasoning,
+			},
+		});
+
+		console.log("[Agent] Saved to Convex:", accountId);
+		return { success: true, id: accountId };
+	} catch (error) {
+		console.error("[Agent] Error saving to Convex:", error);
+		return { success: false, id: `error_${Date.now()}` };
+	}
 }
 
 /**

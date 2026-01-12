@@ -128,3 +128,15 @@ export const updateStatus = mutation({
 		});
 	},
 });
+
+// Delete all alerts
+export const deleteAll = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const alerts = await ctx.db.query("alerts").collect();
+		for (const alert of alerts) {
+			await ctx.db.delete(alert._id);
+		}
+		return { deleted: alerts.length };
+	},
+});

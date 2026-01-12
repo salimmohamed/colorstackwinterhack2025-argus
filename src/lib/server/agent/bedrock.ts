@@ -67,11 +67,13 @@ export class BedrockClient {
 			region: config.region,
 			// AWS credentials are automatically loaded from environment or IAM role
 		});
-		this.modelId = config.modelId || "anthropic.claude-3-5-haiku-20241022-v1:0";
+		// Use Haiku 3.5 inference profile (4.5 has tight rate limits)
+		this.modelId = config.modelId || "us.anthropic.claude-3-5-haiku-20241022-v1:0";
 	}
 
 	/**
 	 * Send a message to Claude via Bedrock Converse API
+	 * Includes retry logic for rate limits
 	 */
 	async converse(params: {
 		system: string;
@@ -90,21 +92,39 @@ export class BedrockClient {
 			},
 		});
 
-		const response = await this.client.send(command);
+		// Retry with exponential backoff for rate limits
+		const maxRetries = 3;
+		let lastError: Error | null = null;
 
-		return {
-			output: {
-				message: {
-					role: response.output?.message?.role || "assistant",
-					content: response.output?.message?.content || [],
-				},
-			},
-			stopReason: response.stopReason || "end_turn",
-			usage: {
-				inputTokens: response.usage?.inputTokens || 0,
-				outputTokens: response.usage?.outputTokens || 0,
-			},
-		};
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			try {
+				const response = await this.client.send(command);
+				return {
+					output: {
+						message: {
+							role: response.output?.message?.role || "assistant",
+							content: response.output?.message?.content || [],
+						},
+					},
+					stopReason: response.stopReason || "end_turn",
+					usage: {
+						inputTokens: response.usage?.inputTokens || 0,
+						outputTokens: response.usage?.outputTokens || 0,
+					},
+				};
+			} catch (error: any) {
+				lastError = error;
+				if (error.name === "ThrottlingException" || error.message?.includes("Too many requests")) {
+					const delay = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s
+					console.log(`[Bedrock] Rate limited, retrying in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries})`);
+					await new Promise(r => setTimeout(r, delay));
+				} else {
+					throw error;
+				}
+			}
+		}
+
+		throw lastError || new Error("Max retries exceeded");
 	}
 }
 

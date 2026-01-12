@@ -131,3 +131,15 @@ export const flag = mutation({
 		return account._id;
 	},
 });
+
+// Delete all accounts
+export const deleteAll = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const accounts = await ctx.db.query("accounts").collect();
+		for (const account of accounts) {
+			await ctx.db.delete(account._id);
+		}
+		return { deleted: accounts.length };
+	},
+});

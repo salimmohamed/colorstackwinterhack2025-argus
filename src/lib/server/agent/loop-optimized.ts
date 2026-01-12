@@ -121,11 +121,13 @@ Be efficient - skip accounts you've already analyzed.`;
 				};
 			}
 
-			// Keep only last 4 messages (2 exchanges) to limit context
-			if (recentMessages.length > 4) {
+			// Keep only last 5 messages (2 complete exchanges + initial prompt)
+			// Must maintain: user, assistant(tool_use), user(tool_result), assistant(tool_use), user(tool_result)
+			if (recentMessages.length > 5) {
+				// Always keep pairs: assistant+user together
 				recentMessages = [
 					recentMessages[0], // Keep initial prompt with summary
-					...recentMessages.slice(-3), // Keep last exchange + current
+					...recentMessages.slice(-4), // Keep last 2 complete exchanges (assistant+user pairs)
 				];
 			}
 

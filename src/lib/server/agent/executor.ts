@@ -229,7 +229,7 @@ export async function fetchMarketHolders(
 			allHolders.push({
 				address: holder.proxyWallet,
 				amount: holder.amount,
-				outcome: response.outcome,
+				outcome: `outcome_${holder.outcomeIndex}`,
 			});
 			totalValue += holder.amount;
 		}
@@ -303,7 +303,7 @@ export async function fetchWalletPositions(
 			initialValue: p.initialValue,
 			realizedPnl: p.realizedPnl,
 			unrealizedPnl: p.cashPnl,
-			percentChange: p.percentChange,
+			percentChange: p.percentPnl,
 		})),
 		largestPosition: largestPosition
 			? {

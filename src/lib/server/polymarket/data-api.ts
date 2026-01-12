@@ -57,31 +57,41 @@ export interface TradeRecord {
 }
 
 export interface Position {
+	proxyWallet: string;
 	asset: string;
 	conditionId: string;
-	curPrice: number;
-	currentValue: number;
+	size: number;
+	avgPrice: number;
 	initialValue: number;
-	percentChange: number;
-	outcomeIndex: number;
-	realizedPnl: number;
+	currentValue: number;
 	cashPnl: number;
+	percentPnl: number;
+	totalBought: number;
+	realizedPnl: number;
+	curPrice: number;
 	title: string;
 	slug: string;
-	size: number;
+	eventSlug: string;
+	outcome: string;
+	outcomeIndex: number;
+	endDate: string;
 }
 
-export interface HolderData {
+export interface Holder {
 	proxyWallet: string;
+	bio?: string;
+	asset: string;
+	pseudonym?: string;
 	amount: number;
-	outcome: string;
+	displayUsernamePublic: boolean;
+	outcomeIndex: number;
+	name?: string;
+	profileImage?: string;
 }
 
-export interface HolderResponse {
-	conditionId: string;
-	tokenId: string;
-	outcome: string;
-	holders: HolderData[];
+export interface HoldersResponse {
+	token: string;
+	holders: Holder[];
 }
 
 export class DataApiClient {
@@ -108,15 +118,20 @@ export class DataApiClient {
 		if (params.offset) searchParams.set("offset", String(params.offset));
 
 		const url = `${this.baseUrl}/activity?${searchParams}`;
-		const response = await fetch(url);
 
-		if (!response.ok) {
-			throw new Error(
-				`Data API error: ${response.status} ${response.statusText}`,
-			);
+		try {
+			const response = await fetch(url);
+
+			if (!response.ok) {
+				console.error(`[DataAPI] Activity error: ${response.status} for ${url}`);
+				return [];
+			}
+
+			return response.json();
+		} catch (error) {
+			console.error(`[DataAPI] Activity fetch error:`, error);
+			return [];
 		}
-
-		return response.json();
 	}
 
 	/**
@@ -136,28 +151,46 @@ export class DataApiClient {
 
 	/**
 	 * Get recent activity for a specific market
+	 * Uses the /trades endpoint which supports market queries
 	 */
 	async getMarketActivity(
 		marketId: string,
 		hoursBack = 72,
 		minTradeSize?: number,
 	): Promise<ActivityRecord[]> {
-		const startTime = Date.now() - hoursBack * 60 * 60 * 1000;
+		// Use the /trades endpoint instead of /activity (which requires user param)
+		const trades = await this.getMarketTradesAsActivity(marketId, { limit: 500 });
 
-		const activity = await this.getActivity({
-			market: marketId,
-			start: startTime,
-			type: "TRADE",
-			sortBy: "TIMESTAMP",
-			sortDirection: "DESC",
-			limit: 500,
-		});
-
+		// Filter by minimum trade size if specified
 		if (minTradeSize) {
-			return activity.filter((a) => a.usdcSize >= minTradeSize);
+			return trades.filter((a) => (a.usdcSize || a.size * a.price) >= minTradeSize);
 		}
 
-		return activity;
+		return trades;
+	}
+
+	/**
+	 * Get market trades as ActivityRecord format
+	 */
+	async getMarketTradesAsActivity(
+		conditionId: string,
+		options: { limit?: number } = {},
+	): Promise<ActivityRecord[]> {
+		const params = new URLSearchParams();
+		params.set("market", conditionId);
+		params.set("limit", String(options.limit || 500));
+
+		try {
+			const response = await fetch(`${this.baseUrl}/trades?${params}`);
+			if (!response.ok) {
+				console.error(`[DataAPI] Failed to fetch trades: ${response.status}`);
+				return [];
+			}
+			return response.json();
+		} catch (error) {
+			console.error(`[DataAPI] Trades fetch error:`, error);
+			return [];
+		}
 	}
 
 	/**
@@ -227,14 +260,17 @@ export class DataApiClient {
 	/**
 	 * Get market holders (position distribution)
 	 */
-	async getMarketHolders(conditionId: string): Promise<HolderResponse[]> {
-		const url = `${this.baseUrl}/holders?conditionId=${conditionId}`;
-		const response = await fetch(url);
+	async getMarketHolders(conditionId: string): Promise<HoldersResponse[]> {
+		const params = new URLSearchParams();
+		params.set("market", conditionId);
+		params.set("limit", "20");
+		params.set("minBalance", "100");
 
+		const response = await fetch(`${this.baseUrl}/holders?${params}`);
 		if (!response.ok) {
-			throw new Error(`Data API error: ${response.status}`);
+			console.error(`[DataAPI] Failed to fetch holders: ${response.status}`);
+			return [];
 		}
-
 		return response.json();
 	}
 

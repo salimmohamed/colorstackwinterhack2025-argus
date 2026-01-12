@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
+import { PixelBlastEye } from "@/components/ui/pixel-blast-eye";
 
 type Severity = "low" | "medium" | "high" | "critical";
 
@@ -22,30 +23,10 @@ interface Alert {
 }
 
 const SEVERITY_CONFIG = {
-  critical: {
-    label: "CRITICAL",
-    color: "#ff3b30",
-    glow: "0 0 20px rgba(255, 59, 48, 0.5), 0 0 40px rgba(255, 59, 48, 0.2)",
-    pulse: true,
-  },
-  high: {
-    label: "HIGH",
-    color: "#ff9500",
-    glow: "0 0 15px rgba(255, 149, 0, 0.4)",
-    pulse: false,
-  },
-  medium: {
-    label: "MEDIUM",
-    color: "#f59e0b",
-    glow: "0 0 10px rgba(245, 158, 11, 0.3)",
-    pulse: false,
-  },
-  low: {
-    label: "LOW",
-    color: "#30d158",
-    glow: "none",
-    pulse: false,
-  },
+  critical: { label: "CRITICAL", color: "var(--accent)" },
+  high: { label: "HIGH", color: "var(--accent)" },
+  medium: { label: "MEDIUM", color: "var(--text-dim)" },
+  low: { label: "LOW", color: "var(--text-muted)" },
 };
 
 function formatTimeAgo(timestamp: number) {
@@ -59,319 +40,188 @@ function formatTimeAgo(timestamp: number) {
 }
 
 /* ============================================
-   THREAT GAUGE COMPONENT
-   ============================================ */
-function ThreatGauge({ level, total }: { level: number; total: number }) {
-  const percentage = total > 0 ? Math.min((level / total) * 100, 100) : 0;
-  const threatLabel = percentage > 66 ? "ELEVATED" : percentage > 33 ? "MODERATE" : "LOW";
-  const threatColor = percentage > 66 ? "#ff3b30" : percentage > 33 ? "#ff9500" : "#30d158";
-
-  return (
-    <div className="relative">
-      <div className="flex items-center gap-4">
-        <div className="text-[0.6rem] tracking-[0.3em] text-[#444]">THREAT LEVEL</div>
-        <div className="flex-1 h-[2px] bg-[#1a1a1a] relative overflow-hidden">
-          <div
-            className="absolute left-0 top-0 h-full transition-all duration-1000 ease-out"
-            style={{
-              width: `${percentage}%`,
-              background: `linear-gradient(90deg, ${threatColor}44, ${threatColor})`,
-              boxShadow: `0 0 10px ${threatColor}`,
-            }}
-          />
-          {/* Scanning line */}
-          <div
-            className="absolute top-0 h-full w-8 animate-scan"
-            style={{
-              background: `linear-gradient(90deg, transparent, ${threatColor}66, transparent)`,
-            }}
-          />
-        </div>
-        <div
-          className="text-[0.65rem] tracking-[0.2em] font-semibold"
-          style={{ color: threatColor }}
-        >
-          {threatLabel}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================
    STAT CARD COMPONENT
    ============================================ */
 function StatCard({
   count,
   label,
-  severity,
-  index,
+  isAccent,
+  delay,
 }: {
   count: number;
   label: string;
-  severity: keyof typeof SEVERITY_CONFIG;
-  index: number;
+  isAccent?: boolean;
+  delay: string;
 }) {
-  const config = SEVERITY_CONFIG[severity];
-
   return (
     <div
-      className="relative group animate-slideUp"
-      style={{ animationDelay: `${index * 0.1}s` }}
+      className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 hover:border-[#252525] transition-all animate-fadeSlideUp"
+      style={{ animationDelay: delay }}
     >
-      {/* Card */}
       <div
-        className="relative overflow-hidden bg-[#0a0a0a] border border-[#1a1a1a] p-4 transition-all duration-300 hover:border-[#252525]"
-        style={{
-          boxShadow: count > 0 ? config.glow : "none",
-        }}
+        className={`text-2xl font-semibold ${isAccent && count > 0 ? "text-[var(--accent)]" : "text-[var(--foreground)]"}`}
       >
-        {/* CRT scan line effect */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03]">
-          <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]" />
-        </div>
-
-        {/* Pulsing indicator for critical */}
-        {config.pulse && count > 0 && (
-          <div
-            className="absolute top-2 right-2 w-2 h-2 rounded-full animate-pulse"
-            style={{ backgroundColor: config.color, boxShadow: `0 0 8px ${config.color}` }}
-          />
-        )}
-
-        {/* Content */}
-        <div className="relative z-10">
-          <div
-            className="text-3xl font-light tracking-tight transition-transform duration-300 group-hover:scale-110"
-            style={{ color: count > 0 ? config.color : "#333" }}
-          >
-            {count}
-          </div>
-          <div
-            className="text-[0.6rem] tracking-[0.2em] mt-1 uppercase"
-            style={{ color: count > 0 ? config.color : "#444" }}
-          >
-            {label}
-          </div>
-        </div>
-
-        {/* Corner accent */}
-        <div
-          className="absolute bottom-0 right-0 w-8 h-8 opacity-20"
-          style={{
-            background: `linear-gradient(135deg, transparent 50%, ${config.color} 50%)`,
-          }}
-        />
+        {count}
+      </div>
+      <div className="text-[0.6rem] tracking-[0.12em] uppercase text-[var(--text-muted)] mt-1">
+        {label}
       </div>
     </div>
   );
 }
 
 /* ============================================
-   DOSSIER CARD (SUSPECT) COMPONENT
+   SUSPECT CARD COMPONENT
    ============================================ */
-function DossierCard({
+function SuspectCard({
   alert,
   isOpen,
   onToggle,
-  index,
+  delay,
 }: {
   alert: Alert;
   isOpen: boolean;
   onToggle: () => void;
-  index: number;
+  delay: string;
 }) {
   const config = SEVERITY_CONFIG[alert.severity];
-  const metrics = alert.evidence?.metrics as Record<string, number | string> || {};
+  const metrics = (alert.evidence?.metrics as Record<string, number | string>) || {};
+  const isHighPriority = alert.severity === "critical" || alert.severity === "high";
 
   return (
-    <div
-      className="animate-slideUp"
-      style={{ animationDelay: `${0.2 + index * 0.08}s` }}
-    >
+    <div className="animate-fadeSlideUp" style={{ animationDelay: delay }}>
       <div
         onClick={onToggle}
         className={`
-          relative overflow-hidden cursor-pointer transition-all duration-500
-          bg-[#080808] border-l-2 hover:bg-[#0c0c0c]
-          ${isOpen ? "border-[#252525]" : "border-[#151515]"}
+          bg-[#0a0a0a] border cursor-pointer transition-all
+          ${isHighPriority ? "border-[rgba(245,158,11,0.3)]" : "border-[#1a1a1a]"}
+          ${isOpen ? "border-[#252525]" : ""}
+          hover:border-[#252525]
         `}
-        style={{
-          borderLeftColor: config.color,
-          boxShadow: isOpen ? config.glow : "none",
-        }}
       >
-        {/* Classification stamp */}
-        <div
-          className="absolute top-0 right-0 px-3 py-1 text-[0.55rem] tracking-[0.25em] font-bold uppercase"
-          style={{
-            backgroundColor: `${config.color}15`,
-            color: config.color,
-            borderBottom: `1px solid ${config.color}33`,
-            borderLeft: `1px solid ${config.color}33`,
-          }}
-        >
-          {config.label}
-        </div>
-
-        {/* Main content area */}
-        <div className="p-5 pr-24">
-          {/* Header row */}
-          <div className="flex items-start gap-4">
-            {/* Subject identifier */}
+        {/* Header */}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-sm text-[#e8e8e8] tracking-wide">
-                  {alert.accountAddress.slice(0, 6)}····{alert.accountAddress.slice(-4)}
+              {/* Address & Time */}
+              <div className="flex items-center gap-3 mb-2">
+                <span className="font-mono text-sm text-[var(--foreground)]">
+                  {alert.accountAddress.slice(0, 6)}...{alert.accountAddress.slice(-4)}
                 </span>
-                <span className="text-[0.55rem] text-[#333] tracking-wider">
-                  │ {formatTimeAgo(alert.createdAt)}
+                <span
+                  className="text-[0.55rem] tracking-[0.15em] uppercase font-semibold px-2 py-0.5"
+                  style={{
+                    color: config.color,
+                    backgroundColor: isHighPriority ? "rgba(245,158,11,0.1)" : "transparent",
+                  }}
+                >
+                  {config.label}
                 </span>
               </div>
 
-              {metrics.displayName && (
-                <div className="text-xs text-[#555] font-serif italic mb-2">
-                  aka &ldquo;{String(metrics.displayName)}&rdquo;
-                </div>
-              )}
-
-              <h3 className="text-sm text-[#999] leading-relaxed pr-4">
+              {/* Title */}
+              <p className="text-sm text-[var(--text-dim)] leading-relaxed">
                 {alert.title}
-              </h3>
+              </p>
             </div>
 
-            {/* Quick stats */}
-            <div className="flex gap-4 text-right">
-              {metrics.tradeAmount && (
+            {/* Quick Stats */}
+            <div className="flex gap-4 text-right shrink-0">
+              {metrics.totalProfit !== undefined && (
                 <div>
-                  <div className="text-[0.55rem] text-[#444] tracking-wider uppercase">Bet</div>
-                  <div className="text-sm text-[#888] font-mono">
-                    ${Number(metrics.tradeAmount).toLocaleString()}
+                  <div className="text-[0.55rem] text-[var(--text-muted)] tracking-wider uppercase">
+                    Profit
+                  </div>
+                  <div className="text-sm text-[var(--foreground)] font-mono">
+                    ${Number(metrics.totalProfit).toLocaleString()}
                   </div>
                 </div>
               )}
-              {metrics.accountAgeDays !== undefined && (
+              {metrics.riskScore !== undefined && (
                 <div>
-                  <div className="text-[0.55rem] text-[#444] tracking-wider uppercase">Age</div>
-                  <div className="text-sm text-[#888] font-mono">
-                    {metrics.accountAgeDays}d
+                  <div className="text-[0.55rem] text-[var(--text-muted)] tracking-wider uppercase">
+                    Risk
+                  </div>
+                  <div
+                    className={`text-sm font-mono ${Number(metrics.riskScore) >= 80 ? "text-[var(--accent)]" : "text-[var(--foreground)]"}`}
+                  >
+                    {metrics.riskScore}
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Signal type tag */}
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-[0.55rem] text-[#333] tracking-[0.15em] uppercase">
-              Signal: {alert.signalType.replace(/_/g, " ")}
+          {/* Expand indicator */}
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#151515]">
+            <span className="text-[0.55rem] text-[var(--text-muted)] tracking-[0.1em] uppercase">
+              {alert.signalType.replace(/_/g, " ")}
             </span>
             <div className="flex-1 h-px bg-[#1a1a1a]" />
+            <span className="text-[0.55rem] text-[var(--text-muted)]">
+              {formatTimeAgo(alert.createdAt)}
+            </span>
             <span
-              className="text-[0.55rem] tracking-wider transition-transform duration-300"
-              style={{
-                color: "#444",
-                transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-              }}
+              className="text-[var(--text-muted)] text-[0.6rem] transition-transform duration-300"
+              style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
             >
               ▼
             </span>
           </div>
         </div>
 
-        {/* Expandable AI Analysis Section */}
-        <div
-          className="overflow-hidden transition-all duration-500 ease-out"
-          style={{
-            maxHeight: isOpen ? "600px" : "0px",
-            opacity: isOpen ? 1 : 0,
-          }}
-        >
-          <div className="border-t border-[#1a1a1a]">
-            {/* Classification header */}
-            <div
-              className="px-5 py-2 flex items-center gap-3"
-              style={{ backgroundColor: `${config.color}08` }}
-            >
-              <div
-                className="w-1.5 h-1.5 rounded-full animate-pulse"
-                style={{ backgroundColor: config.color }}
-              />
-              <span
-                className="text-[0.6rem] tracking-[0.25em] uppercase font-semibold"
-                style={{ color: config.color }}
-              >
-                AI Analysis — Declassified
-              </span>
-              <div
-                className="flex-1 h-px"
-                style={{ background: `linear-gradient(90deg, ${config.color}33, transparent)` }}
-              />
-            </div>
-
-            {/* Reasoning content */}
-            <div className="px-5 py-4 bg-[#050505]">
-              <p className="text-sm text-[#777] leading-[1.8] font-light">
+        {/* Expandable Section */}
+        {isOpen && (
+          <div className="px-5 pb-5 pt-0 animate-fadeIn">
+            <div className="bg-[#080808] border border-[#151515] p-4">
+              <div className="text-[0.6rem] tracking-[0.15em] uppercase text-[var(--accent)] mb-3">
+                Why Flagged
+              </div>
+              <p className="text-sm text-[var(--text-dim)] leading-relaxed">
                 {alert.evidence?.reasoning || "No detailed analysis available."}
               </p>
 
-              {/* Evidence grid */}
+              {/* Metrics Grid */}
               {Object.keys(metrics).length > 0 && (
-                <div className="mt-5 pt-4 border-t border-[#151515]">
-                  <div className="text-[0.55rem] text-[#333] tracking-[0.2em] uppercase mb-3">
-                    Evidence Metrics
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {Object.entries(metrics).slice(0, 6).map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="bg-[#0a0a0a] border border-[#151515] px-3 py-2"
-                      >
-                        <div className="text-[0.5rem] text-[#444] tracking-wider uppercase truncate">
+                <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-[#1a1a1a]">
+                  {Object.entries(metrics)
+                    .filter(([key]) => !["displayName"].includes(key))
+                    .slice(0, 6)
+                    .map(([key, value]) => (
+                      <div key={key} className="bg-[#0a0a0a] px-3 py-2">
+                        <div className="text-[0.5rem] text-[var(--text-muted)] tracking-wider uppercase truncate">
                           {key.replace(/([A-Z])/g, " $1").trim()}
                         </div>
-                        <div className="text-xs text-[#666] font-mono mt-0.5">
+                        <div className="text-xs text-[var(--text-dim)] font-mono mt-0.5">
                           {typeof value === "number"
                             ? value >= 1000
                               ? `$${value.toLocaleString()}`
                               : value < 1 && value > 0
                                 ? `${(value * 100).toFixed(1)}%`
                                 : value
-                            : String(value).slice(0, 20)}
+                            : String(value).slice(0, 15)}
                         </div>
                       </div>
                     ))}
-                  </div>
                 </div>
               )}
 
-              {/* Action link */}
-              <div className="mt-4 pt-4 border-t border-[#151515]">
+              {/* Action Link */}
+              <div className="mt-4 pt-4 border-t border-[#1a1a1a]">
                 <a
                   href={`https://polymarket.com/profile/${alert.accountAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-2 text-[0.65rem] tracking-wider uppercase transition-all hover:gap-3"
-                  style={{ color: config.color }}
+                  className="inline-flex items-center gap-2 text-[0.65rem] tracking-wider uppercase text-[var(--accent)] hover:gap-3 transition-all"
                 >
-                  <span>View Subject Profile</span>
+                  <span>View on Polymarket</span>
                   <span>→</span>
                 </a>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Scan line overlay on hover */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-0 hover:opacity-100 transition-opacity duration-300"
-          style={{
-            background: `linear-gradient(180deg, transparent, ${config.color}05, transparent)`,
-            backgroundSize: "100% 300%",
-            animation: "scanDown 2s linear infinite",
-          }}
-        />
+        )}
       </div>
     </div>
   );
@@ -395,6 +245,14 @@ export default function SuspectsPage() {
     alerts.forEach((a) => {
       if (a.severity in g) g[a.severity as Severity].push(a as Alert);
     });
+    // Sort each group by risk score (highest first)
+    Object.keys(g).forEach((key) => {
+      g[key as Severity].sort((a, b) => {
+        const riskA = (a.evidence?.metrics as Record<string, unknown>)?.riskScore as number || 0;
+        const riskB = (b.evidence?.metrics as Record<string, unknown>)?.riskScore as number || 0;
+        return riskB - riskA;
+      });
+    });
     return g;
   }, [alerts]);
 
@@ -407,263 +265,172 @@ export default function SuspectsPage() {
       }
     : { critical: 0, high: 0, medium: 0, low: 0 };
 
-  const totalThreats = counts.critical * 3 + counts.high * 2 + counts.medium;
-  const maxThreat = (counts.critical + counts.high + counts.medium + counts.low) * 3 || 1;
+  const totalCount = counts.critical + counts.high + counts.medium + counts.low;
 
   return (
-    <div className="min-h-screen bg-[#030303] text-[#e8e8e8] overflow-x-hidden">
-      {/* Ambient effects */}
-      <div className="fixed inset-0 pointer-events-none">
-        {/* Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#030303_70%)]" />
+    <div className="min-h-screen relative" suppressHydrationWarning>
+      {/* Full background - PixelBlast Eye */}
+      <div className="fixed inset-0">
+        <PixelBlastEye className="absolute inset-0" eyeOffsetX={0.2} />
 
-        {/* Top glow based on threat level */}
-        {mounted && counts.critical > 0 && (
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-[radial-gradient(ellipse_at_top,rgba(255,59,48,0.1)_0%,transparent_70%)] animate-pulse" />
-        )}
-
-        {/* Subtle grid */}
+        {/* Scanlines */}
         <div
-          className="absolute inset-0 opacity-[0.02]"
+          className="absolute inset-0 pointer-events-none opacity-30"
           style={{
-            backgroundImage: `
-              linear-gradient(#fff 1px, transparent 1px),
-              linear-gradient(90deg, #fff 1px, transparent 1px)
-            `,
-            backgroundSize: "100px 100px",
+            background:
+              "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 4px)",
+          }}
+        />
+
+        {/* Grain overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.04]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+          }}
+        />
+
+        {/* Vignette */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at center, transparent 20%, var(--background) 80%)",
+          }}
+        />
+
+        {/* Left fade for content readability */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "linear-gradient(90deg, var(--background) 0%, var(--background) 30%, transparent 60%)",
           }}
         />
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-8">
-        {/* Header */}
-        <header className="mb-10">
-          <nav className="mb-8 animate-slideUp">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-[#444] text-[0.65rem] tracking-[0.2em] uppercase hover:text-[var(--accent)] transition-colors"
+      {/* Content overlay */}
+      <div className="relative z-10 min-h-screen">
+        <div className="max-w-2xl min-h-screen p-8 flex flex-col">
+          {/* Header */}
+          <header className="mb-8">
+            <nav className="mb-6 animate-fadeSlideUp" style={{ animationDelay: "0s" }}>
+              <Link
+                href="/"
+                className="text-[var(--text-dim)] text-xs tracking-[0.15em] uppercase hover:text-[var(--accent)] transition-colors"
+              >
+                ← Back
+              </Link>
+            </nav>
+
+            <div
+              className="animate-fadeSlideUp"
+              style={{ animationDelay: "0.1s" }}
             >
-              <span>←</span>
-              <span>Command Center</span>
-            </Link>
-          </nav>
-
-          <div className="flex items-end justify-between gap-8 pb-6 border-b border-[#151515]">
-            <div className="animate-slideUp" style={{ animationDelay: "0.05s" }}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="text-[0.55rem] tracking-[0.4em] text-[#333] uppercase">
-                  Argus Intelligence
-                </div>
-                <div className="px-2 py-0.5 bg-[#ff3b3015] border border-[#ff3b3033] text-[#ff3b30] text-[0.5rem] tracking-[0.2em] uppercase">
-                  Live
-                </div>
-              </div>
-              <h1 className="font-serif text-3xl tracking-wide text-[#fafafa]">
-                Suspect Dossiers
+              <p className="text-[0.6rem] tracking-[0.35em] text-[var(--text-muted)] uppercase mb-2">
+                Insider Detection
+              </p>
+              <h1 className="font-serif text-3xl text-[var(--foreground)]">
+                Suspected Insiders
               </h1>
+              {mounted && totalCount > 0 && (
+                <p className="text-sm text-[var(--text-dim)] mt-2">
+                  {totalCount} account{totalCount !== 1 ? "s" : ""} flagged for review
+                </p>
+              )}
             </div>
+          </header>
 
-            <div className="w-64 animate-slideUp" style={{ animationDelay: "0.1s" }}>
-              <ThreatGauge level={totalThreats} total={maxThreat} />
-            </div>
-          </div>
-        </header>
+          {/* Stats Grid */}
+          <section className="grid grid-cols-4 gap-3 mb-8">
+            <StatCard count={counts.critical} label="Critical" isAccent delay="0.15s" />
+            <StatCard count={counts.high} label="High" isAccent delay="0.2s" />
+            <StatCard count={counts.medium} label="Medium" delay="0.25s" />
+            <StatCard count={counts.low} label="Low" delay="0.3s" />
+          </section>
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-4 gap-3 mb-10">
-          <StatCard count={counts.critical} label="Critical" severity="critical" index={0} />
-          <StatCard count={counts.high} label="High" severity="high" index={1} />
-          <StatCard count={counts.medium} label="Medium" severity="medium" index={2} />
-          <StatCard count={counts.low} label="Low Risk" severity="low" index={3} />
-        </section>
-
-        {/* Dossier List */}
-        <section>
-          {!grouped ? (
-            <div className="flex flex-col items-center py-20 animate-slideUp">
-              <div className="relative">
-                <div
-                  className="w-12 h-12 rounded-full border-2 border-[var(--accent)] animate-spin"
-                  style={{ borderTopColor: "transparent" }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
-                </div>
+          {/* Suspects List */}
+          <section className="flex-1 overflow-auto">
+            {!grouped ? (
+              <div
+                className="flex flex-col items-center py-16 animate-fadeSlideUp"
+                style={{ animationDelay: "0.3s" }}
+              >
+                <span className="text-3xl text-[var(--accent)] animate-pulse">◉</span>
+                <p className="mt-4 text-sm text-[var(--text-dim)]">Loading suspects...</p>
               </div>
-              <p className="mt-6 text-xs text-[#444] tracking-wider uppercase">
-                Scanning intelligence feeds...
-              </p>
-            </div>
-          ) : counts.critical + counts.high + counts.medium + counts.low === 0 ? (
-            <div className="flex flex-col items-center py-20 animate-slideUp">
-              <div className="text-5xl text-[#1a1a1a] mb-4">◎</div>
-              <h3 className="text-base text-[#666] mb-2">No Active Subjects</h3>
-              <p className="text-xs text-[#444] text-center max-w-sm">
-                Intelligence gathering in progress. Subjects will appear here
-                when suspicious trading patterns are detected.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Critical */}
-              {grouped.critical.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="text-[0.6rem] tracking-[0.3em] uppercase text-[#ff3b30]">
-                      Immediate Threats
-                    </h2>
-                    <div className="flex-1 h-px bg-gradient-to-r from-[#ff3b3033] to-transparent" />
-                    <span className="text-[0.55rem] text-[#333] tracking-wider">
-                      {grouped.critical.length} SUBJECT{grouped.critical.length !== 1 ? "S" : ""}
-                    </span>
-                  </div>
+            ) : totalCount === 0 ? (
+              <div
+                className="flex flex-col items-center py-16 animate-fadeSlideUp"
+                style={{ animationDelay: "0.3s" }}
+              >
+                <span className="text-4xl text-[var(--text-muted)] mb-4">◎</span>
+                <h3 className="text-base text-[var(--foreground)] mb-2">No Suspects Found</h3>
+                <p className="text-sm text-[var(--text-dim)] text-center max-w-sm">
+                  Suspects will appear here when suspicious trading patterns are detected.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Critical & High Priority */}
+                {[...grouped.critical, ...grouped.high].length > 0 && (
                   <div className="space-y-2">
-                    {grouped.critical.map((alert, i) => (
-                      <DossierCard
+                    {[...grouped.critical, ...grouped.high].map((alert, i) => (
+                      <SuspectCard
                         key={alert._id}
                         alert={alert}
                         isOpen={openId === alert._id}
                         onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
-                        index={i}
+                        delay={`${0.35 + i * 0.05}s`}
                       />
                     ))}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* High */}
-              {grouped.high.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="text-[0.6rem] tracking-[0.3em] uppercase text-[#ff9500]">
-                      High Priority
-                    </h2>
-                    <div className="flex-1 h-px bg-gradient-to-r from-[#ff950033] to-transparent" />
-                    <span className="text-[0.55rem] text-[#333] tracking-wider">
-                      {grouped.high.length} SUBJECT{grouped.high.length !== 1 ? "S" : ""}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {grouped.high.map((alert, i) => (
-                      <DossierCard
-                        key={alert._id}
-                        alert={alert}
-                        isOpen={openId === alert._id}
-                        onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+                {/* Medium & Low */}
+                {[...grouped.medium, ...grouped.low].length > 0 && (
+                  <>
+                    {[...grouped.critical, ...grouped.high].length > 0 && (
+                      <div
+                        className="flex items-center gap-3 py-4 animate-fadeSlideUp"
+                        style={{ animationDelay: "0.5s" }}
+                      >
+                        <div className="h-px flex-1 bg-[#1a1a1a]" />
+                        <span className="text-[0.55rem] tracking-[0.2em] text-[var(--text-muted)] uppercase">
+                          Lower Priority
+                        </span>
+                        <div className="h-px flex-1 bg-[#1a1a1a]" />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {[...grouped.medium, ...grouped.low].map((alert, i) => (
+                        <SuspectCard
+                          key={alert._id}
+                          alert={alert}
+                          isOpen={openId === alert._id}
+                          onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
+                          delay={`${0.55 + i * 0.05}s`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </section>
 
-              {/* Medium */}
-              {grouped.medium.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="text-[0.6rem] tracking-[0.3em] uppercase text-[var(--accent)]">
-                      Under Review
-                    </h2>
-                    <div className="flex-1 h-px bg-gradient-to-r from-[rgba(245,158,11,0.2)] to-transparent" />
-                    <span className="text-[0.55rem] text-[#333] tracking-wider">
-                      {grouped.medium.length} SUBJECT{grouped.medium.length !== 1 ? "S" : ""}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {grouped.medium.map((alert, i) => (
-                      <DossierCard
-                        key={alert._id}
-                        alert={alert}
-                        isOpen={openId === alert._id}
-                        onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Low */}
-              {grouped.low.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2 className="text-[0.6rem] tracking-[0.3em] uppercase text-[#30d158]">
-                      Low Confidence
-                    </h2>
-                    <div className="flex-1 h-px bg-gradient-to-r from-[#30d15833] to-transparent" />
-                    <span className="text-[0.55rem] text-[#333] tracking-wider">
-                      {grouped.low.length} SUBJECT{grouped.low.length !== 1 ? "S" : ""}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {grouped.low.map((alert, i) => (
-                      <DossierCard
-                        key={alert._id}
-                        alert={alert}
-                        isOpen={openId === alert._id}
-                        onToggle={() => setOpenId(openId === alert._id ? null : alert._id)}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* Footer */}
-        <footer className="mt-16 pt-6 border-t border-[#151515] animate-slideUp" style={{ animationDelay: "0.4s" }}>
-          <p className="font-serif italic text-sm text-[#333]">
-            &ldquo;In the kingdom of the blind, the one-eyed man is king.&rdquo;
-          </p>
-          <p className="text-[0.55rem] text-[#222] mt-1 tracking-wider">
-            — Erasmus
-          </p>
-        </footer>
+          {/* Footer */}
+          <footer
+            className="pt-8 mt-auto animate-fadeSlideUp"
+            style={{ animationDelay: "0.8s" }}
+          >
+            <p className="font-serif italic text-sm text-[var(--text-dim)] leading-6">
+              &ldquo;In the kingdom of the blind, the one-eyed man is king.&rdquo;
+            </p>
+            <p className="text-[0.65rem] text-[var(--text-muted)] mt-1 tracking-[0.08em]">
+              — Erasmus
+            </p>
+          </footer>
+        </div>
       </div>
-
-      {/* Keyframe animations */}
-      <style jsx global>{`
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes scan {
-          from {
-            transform: translateX(-100%);
-          }
-          to {
-            transform: translateX(400%);
-          }
-        }
-
-        @keyframes scanDown {
-          from {
-            background-position: 0 0;
-          }
-          to {
-            background-position: 0 100%;
-          }
-        }
-
-        .animate-slideUp {
-          opacity: 0;
-          animation: slideUp 0.6s ease-out forwards;
-        }
-
-        .animate-scan {
-          animation: scan 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }

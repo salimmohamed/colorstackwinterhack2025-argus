@@ -7,6 +7,10 @@ interface PixelBlastEyeProps {
   pixelSize?: number;
   gap?: number;
   color?: string;
+  /** Horizontal offset for eye center (0 = center, 0.5 = far right, -0.5 = far left) */
+  eyeOffsetX?: number;
+  /** Vertical offset for eye center (0 = center, 0.5 = bottom, -0.5 = top) */
+  eyeOffsetY?: number;
 }
 
 // Bayer 8x8 dithering matrix
@@ -66,6 +70,8 @@ export function PixelBlastEye({
   pixelSize = 4,
   gap = 1,
   color = "#f59e0b",
+  eyeOffsetX = 0,
+  eyeOffsetY = 0,
 }: PixelBlastEyeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -273,8 +279,8 @@ export function PixelBlastEye({
       ctx.fillStyle = "#030303";
       ctx.fillRect(0, 0, state.width, state.height);
 
-      const centerX = state.cols / 2;
-      const centerY = state.rows / 2;
+      const centerX = state.cols / 2 + (state.cols * eyeOffsetX);
+      const centerY = state.rows / 2 + (state.rows * eyeOffsetY);
       const { r, g, b } = colorRgb.current;
 
       for (let i = 0; i < state.cols; i++) {
@@ -360,7 +366,7 @@ export function PixelBlastEye({
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [cell, pixelSize, getEyeIntensityWithBlend, updateGaze, getRippleEffect]);
+  }, [cell, pixelSize, getEyeIntensityWithBlend, updateGaze, getRippleEffect, eyeOffsetX, eyeOffsetY]);
 
   return (
     <div ref={containerRef} className={`w-full h-full ${className}`}>
