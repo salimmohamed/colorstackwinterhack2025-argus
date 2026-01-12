@@ -23,4 +23,6 @@ jobs:
         run: bunx tsc --noEmit
 
       - name: Build
+        env:
+          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL || 'https://placeholder.convex.cloud' }}
         run: bun run build
