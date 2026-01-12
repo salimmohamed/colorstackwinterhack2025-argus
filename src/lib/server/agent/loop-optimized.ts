@@ -121,14 +121,19 @@ Be efficient - skip accounts you've already analyzed.`;
 				};
 			}
 
-			// Keep only last 5 messages (2 complete exchanges + initial prompt)
-			// Must maintain: user, assistant(tool_use), user(tool_result), assistant(tool_use), user(tool_result)
-			if (recentMessages.length > 5) {
-				// Always keep pairs: assistant+user together
-				recentMessages = [
-					recentMessages[0], // Keep initial prompt with summary
-					...recentMessages.slice(-4), // Keep last 2 complete exchanges (assistant+user pairs)
-				];
+			// Keep conversation manageable while preserving tool use cycles
+			// Bedrock requires: user, assistant(tool_use), user(tool_result) to stay together
+			if (recentMessages.length > 7) {
+				// Find safe slice point: after a user message (tool_result or regular response)
+				// Keep initial prompt + last 6 messages (3 complete exchanges)
+				const keptMessages = recentMessages.slice(-6);
+				// Verify first kept message after initial is a user message
+				if (keptMessages[0]?.role === 'assistant') {
+					// Broken pair - shift by 1 to start on user message
+					recentMessages = [recentMessages[0], ...recentMessages.slice(-5)];
+				} else {
+					recentMessages = [recentMessages[0], ...keptMessages];
+				}
 			}
 
 			const response = await client.converse({

@@ -161,12 +161,16 @@ export class DataApiClient {
 		// Use the /trades endpoint instead of /activity (which requires user param)
 		const trades = await this.getMarketTradesAsActivity(marketId, { limit: 500 });
 
+		// Filter by time window
+		const cutoffTime = Date.now() / 1000 - hoursBack * 3600;
+		let filteredTrades = trades.filter((a) => a.timestamp >= cutoffTime);
+
 		// Filter by minimum trade size if specified
 		if (minTradeSize) {
-			return trades.filter((a) => (a.usdcSize || a.size * a.price) >= minTradeSize);
+			filteredTrades = filteredTrades.filter((a) => (a.usdcSize || a.size * a.price) >= minTradeSize);
 		}
 
-		return trades;
+		return filteredTrades;
 	}
 
 	/**

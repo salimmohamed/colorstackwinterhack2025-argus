@@ -134,8 +134,8 @@ export async function analyzeTrader(
       : 0;
 
     // SANITY CHECK: If we have lots of trades but low days, the API is returning bad data
-    // Estimate minimum account age from trade count (assume max ~20 trades/day for active trader)
-    const minEstimatedAgeDays = Math.floor(stats.totalTrades / 20);
+    // Estimate minimum account age from trade count (assume max ~100 trades/day for high-frequency trader)
+    const minEstimatedAgeDays = Math.floor(stats.totalTrades / 100);
     if (accountAgeDays < minEstimatedAgeDays && stats.totalTrades > 50) {
       // API is returning incomplete history, use estimated age instead
       accountAgeDays = minEstimatedAgeDays;
@@ -153,6 +153,8 @@ export async function analyzeTrader(
     const realizedProfit = positions.reduce((sum, p) => sum + (p.realizedPnl || 0), 0);
     const unrealizedProfit = positions.reduce((sum, p) => sum + (p.cashPnl || 0), 0);
     const totalProfit = realizedProfit + unrealizedProfit;
+    // Note: largestWin uses realizedPnl only (closed positions) to identify proven winning trades
+    // totalProfit includes unrealized to catch current suspicious positions, but largestWin focuses on track record
     const largestWin = positions.length > 0 ? Math.max(...positions.map(p => p.realizedPnl || 0)) : 0;
 
     // ==========================================
@@ -663,7 +665,7 @@ export async function analyzeMarketForInsiders(
     const walletDominance = new Map<string, number>();
     if (totalMarketValue > 0) {
       for (const [wallet, holding] of walletHoldings) {
-        walletDominance.set(wallet, holding / totalMarketValue);
+        walletDominance.set(wallet.toLowerCase(), holding / totalMarketValue);
       }
     }
 

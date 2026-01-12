@@ -157,8 +157,8 @@ export async function POST(request: NextRequest) {
     const marketsToAnalyze = markets.slice(0, limitMarkets);
     // Use condition IDs (token IDs) for API calls, not slugs
     const marketIds = marketsToAnalyze
-      .filter(m => m.outcomes?.[0]?.tokenId)
-      .map(m => m.outcomes[0].tokenId);
+      .map(m => m.outcomes?.[0]?.tokenId)
+      .filter((id): id is string => !!id);
 
     const response: {
       success: boolean;

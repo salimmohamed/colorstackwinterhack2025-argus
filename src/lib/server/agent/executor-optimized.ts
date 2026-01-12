@@ -129,7 +129,7 @@ export async function fetchMarketActivityOptimized(
 		const topTraders = [...traderVols.entries()]
 			.sort((a, b) => b[1] - a[1])
 			.slice(0, 5)
-			.map(([addr, vol]) => ({ addr: addr.slice(0, 10), vol: Math.round(vol) }));
+			.map(([addr, vol]) => ({ addr, vol: Math.round(vol) })); // Store full address for reliable comparison
 
 		context = {
 			id: marketId,
@@ -261,9 +261,9 @@ export async function compareToMarketOptimized(
 	}
 	const dominance = totalHoldings > 0 ? traderHoldings / totalHoldings : 0;
 
-	// Rank
+	// Rank - compare full addresses for reliable matching
 	const rank = marketData.context.topTraders.findIndex(
-		t => address.toLowerCase().startsWith(t.addr.toLowerCase())
+		t => t.addr.toLowerCase() === address.toLowerCase()
 	);
 
 	return {
@@ -301,12 +301,14 @@ export async function flagSuspiciousAccountOptimized(params: {
 	reasoning: string;
 	evidence?: AlertEvidence;
 }): Promise<{ success: boolean; id: string }> {
-	console.log("[Agent] FLAG:", params.severity, params.address.slice(0, 10), params.title);
+	// Normalize address at entry for consistent handling
+	const normalizedAddress = params.address.toLowerCase();
+	console.log("[Agent] FLAG:", params.severity, normalizedAddress.slice(0, 10), params.title);
 
 	try {
 		// Get account data from cache
-		const accountData = accountCache.get(params.address.toLowerCase())?.data;
-		const fullAddress = accountData?.addr || params.address;
+		const accountData = accountCache.get(normalizedAddress)?.data;
+		const fullAddress = accountData?.addr || normalizedAddress;
 
 		// Upsert account
 		const metrics = params.evidence?.metrics as Record<string, unknown> | undefined;

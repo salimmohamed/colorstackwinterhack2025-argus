@@ -123,8 +123,9 @@ export class BedrockClient {
 					error.message?.includes("Service Unavailable");
 
 				if (isRetryable) {
-					const delay = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s
-					console.log(`[Bedrock] ${error.name || 'Error'}, retrying in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries})`);
+					// Add jitter to avoid thundering herd: 2-3s, 4-5s, 8-9s
+					const delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000;
+					console.log(`[Bedrock] ${error.name || 'Error'}, retrying in ${(delay/1000).toFixed(1)}s (attempt ${attempt + 1}/${maxRetries})`);
 					await new Promise(r => setTimeout(r, delay));
 				} else {
 					throw error;
