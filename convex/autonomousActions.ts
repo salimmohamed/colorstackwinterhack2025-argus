@@ -8,8 +8,9 @@
  */
 
 import { v } from "convex/values";
-import { internalAction, internalMutation } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 
@@ -251,17 +252,18 @@ export const upsertMarket = internalMutation({
  */
 export const logActivity = internalMutation({
   args: {
-    type: v.string(),
+    type: v.union(
+      v.literal("alert_created"),
+      v.literal("agent_started"),
+      v.literal("agent_completed"),
+      v.literal("market_synced"),
+      v.literal("detection_completed"),
+    ),
     payload: v.any(),
   },
   handler: async (ctx, { type, payload }) => {
     await ctx.db.insert("activityFeed", {
-      type: type as
-        | "alert_created"
-        | "agent_started"
-        | "agent_completed"
-        | "market_synced"
-        | "detection_completed",
+      type,
       payload,
       timestamp: Date.now(),
     });
@@ -305,7 +307,6 @@ async function fetchMarketTrades(
  */
 function analyzeTradesForSuspiciousActivity(
   trades: TradeData[],
-  conditionId: string,
 ): Array<{
   wallet: string;
   riskScore: number;
@@ -324,10 +325,13 @@ function analyzeTradesForSuspiciousActivity(
   // Aggregate by wallet
   for (const trade of trades) {
     const wallet = trade.proxyWallet.toLowerCase();
-    const volume =
-      typeof trade.usdcSize === "string"
-        ? parseFloat(trade.usdcSize)
-        : trade.usdcSize ?? 0;
+    let volume = 0;
+    if (typeof trade.usdcSize === "string") {
+      const parsed = parseFloat(trade.usdcSize);
+      volume = Number.isNaN(parsed) ? 0 : parsed;
+    } else if (typeof trade.usdcSize === "number") {
+      volume = Number.isNaN(trade.usdcSize) ? 0 : trade.usdcSize;
+    }
 
     const stats = walletStats.get(wallet) || {
       trades: 0,
@@ -386,6 +390,9 @@ function analyzeTradesForSuspiciousActivity(
   return suspects.sort((a, b) => b.riskScore - a.riskScore);
 }
 
+// Maximum markets to analyze per run (to limit API calls)
+const MAX_MARKETS_PER_RUN = 5;
+
 /**
  * Run rules-based detection on all active markets
  * Called every 2 hours by cron
@@ -398,21 +405,18 @@ export const runRulesDetection = internalAction({
     try {
       // Get active markets
       const markets = await ctx.runQuery(internal.autonomousActions.getActiveMarkets, {});
-      console.log(`[Cron] Analyzing ${markets.length} active markets`);
+      const marketsToAnalyze = markets.slice(0, MAX_MARKETS_PER_RUN);
+      console.log(`[Cron] Analyzing ${marketsToAnalyze.length} of ${markets.length} active markets`);
 
       let totalSuspects = 0;
 
-      for (const market of markets.slice(0, 5)) {
-        // Limit to 5 markets per run
+      for (const market of marketsToAnalyze) {
         const conditionId = market.outcomes[0]?.tokenId;
         if (!conditionId) continue;
 
         try {
           const trades = await fetchMarketTrades(conditionId);
-          const suspects = analyzeTradesForSuspiciousActivity(
-            trades,
-            conditionId,
-          );
+          const suspects = analyzeTradesForSuspiciousActivity(trades);
 
           for (const suspect of suspects) {
             // Upsert account
@@ -439,7 +443,7 @@ export const runRulesDetection = internalAction({
       });
 
       console.log(`[Cron] Rules detection complete: ${totalSuspects} suspects found`);
-      return { marketsAnalyzed: markets.length, suspectsFound: totalSuspects };
+      return { marketsAnalyzed: marketsToAnalyze.length, suspectsFound: totalSuspects };
     } catch (error) {
       console.error("[Cron] Rules detection failed:", error);
       throw error;
@@ -450,8 +454,6 @@ export const runRulesDetection = internalAction({
 /**
  * Query to get active markets
  */
-import { internalQuery } from "./_generated/server";
-
 export const getActiveMarkets = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -482,13 +484,19 @@ export const upsertSuspect = internalMutation({
     const now = Date.now();
 
     if (existing) {
-      // Only update if new risk score is higher
+      // Always update lastActivityAt when activity is detected
+      // Only update risk score and flags if new score is higher
       if (riskScore > existing.riskScore) {
         await ctx.db.patch(existing._id, {
           riskScore,
           flags,
           totalVolume,
           isFlagged: riskScore >= 50,
+          lastActivityAt: now,
+        });
+      } else {
+        // Still update lastActivityAt to reflect continued activity
+        await ctx.db.patch(existing._id, {
           lastActivityAt: now,
         });
       }
@@ -535,13 +543,20 @@ export const triggerAIAgent = internalAction({
       return { success: false, error: "APP_URL not configured" };
     }
 
+    // Create agent run record first so we can track failures
+    let runId: Id<"agentRuns">;
     try {
-      // Create agent run record
-      const runId = await ctx.runMutation(
+      runId = await ctx.runMutation(
         internal.autonomousActions.createAgentRun,
         {},
       );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error("[Cron] Failed to create agent run record:", message);
+      return { success: false, error: `Failed to create run record: ${message}` };
+    }
 
+    try {
       // Call the Next.js API
       const response = await fetch(`${appUrl}/api/agent/trigger`, {
         method: "POST",
@@ -576,6 +591,11 @@ export const triggerAIAgent = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("[Cron] AI agent trigger failed:", message);
+      // Mark the run as failed since we have a runId
+      await ctx.runMutation(internal.autonomousActions.failAgentRun, {
+        runId,
+        error: message,
+      });
       return { success: false, error: message };
     }
   },
