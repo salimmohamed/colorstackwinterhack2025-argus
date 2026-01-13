@@ -140,3 +140,25 @@ export const deleteAll = mutation({
     return { deleted: alerts.length };
   },
 });
+
+// Remove duplicate alerts (same title + accountId)
+export const removeDuplicates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const alerts = await ctx.db.query("alerts").collect();
+    const seen = new Set<string>();
+    let removed = 0;
+
+    for (const alert of alerts) {
+      const key = `${alert.accountId}-${alert.title}`;
+      if (seen.has(key)) {
+        await ctx.db.delete(alert._id);
+        removed++;
+      } else {
+        seen.add(key);
+      }
+    }
+
+    return { removed, remaining: alerts.length - removed };
+  },
+});

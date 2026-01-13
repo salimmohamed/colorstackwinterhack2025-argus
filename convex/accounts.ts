@@ -132,6 +132,14 @@ export const flag = mutation({
   },
 });
 
+// List all accounts
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("accounts").collect();
+  },
+});
+
 // Delete all accounts
 export const deleteAll = mutation({
   args: {},
@@ -141,5 +149,61 @@ export const deleteAll = mutation({
       await ctx.db.delete(account._id);
     }
     return { deleted: accounts.length };
+  },
+});
+
+// Remove duplicate accounts (keep first occurrence of each address)
+export const removeDuplicates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const accounts = await ctx.db.query("accounts").collect();
+    const seenAddresses = new Set<string>();
+    let removed = 0;
+
+    for (const account of accounts) {
+      const addr = account.address.toLowerCase();
+      if (seenAddresses.has(addr)) {
+        await ctx.db.delete(account._id);
+        removed++;
+      } else {
+        seenAddresses.add(addr);
+      }
+    }
+
+    return { removed, remaining: accounts.length - removed };
+  },
+});
+
+// Delete account by address (and its alerts)
+export const deleteByAddress = mutation({
+  args: { address: v.string() },
+  handler: async (ctx, { address }) => {
+    const account = await ctx.db
+      .query("accounts")
+      .withIndex("by_address", (q) => q.eq("address", address.toLowerCase()))
+      .first();
+
+    if (!account) {
+      return { deleted: false, message: "Account not found" };
+    }
+
+    // Delete associated alerts
+    const alerts = await ctx.db
+      .query("alerts")
+      .withIndex("by_account", (q) => q.eq("accountId", account._id))
+      .collect();
+
+    for (const alert of alerts) {
+      await ctx.db.delete(alert._id);
+    }
+
+    // Delete the account
+    await ctx.db.delete(account._id);
+
+    return {
+      deleted: true,
+      accountId: account._id,
+      alertsDeleted: alerts.length,
+    };
   },
 });
