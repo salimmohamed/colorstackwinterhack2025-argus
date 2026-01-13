@@ -46,12 +46,16 @@ export default function MarketsPage() {
         {/* Back link */}
         <Link
           href="/"
-          className="text-[var(--text-dim)] text-xs tracking-[0.1em] uppercase hover:text-[var(--accent)] transition-colors mb-8 inline-block"
+          className="text-[var(--text-dim)] text-xs tracking-[0.1em] uppercase hover:text-[var(--accent)] transition-colors mb-8 inline-block animate-fadeSlideUp"
+          style={{ animationDelay: "0s" }}
         >
           ← Back
         </Link>
 
-        <header className="flex justify-between items-start pb-6 border-b border-[#1a1a1a] mb-8">
+        <header
+          className="flex justify-between items-start pb-6 border-b border-[#1a1a1a] mb-8 animate-fadeSlideUp"
+          style={{ animationDelay: "0.1s" }}
+        >
           <div>
             <h1 className="text-2xl font-semibold text-[#fafafa]">
               ◎ Monitored Markets
@@ -77,14 +81,20 @@ export default function MarketsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {markets === undefined ? (
-            <div className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
+            <div
+              className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center animate-fadeSlideUp"
+              style={{ animationDelay: "0.2s" }}
+            >
               <span className="text-3xl text-[var(--accent)] animate-pulse">
                 ◉
               </span>
               <p className="mt-4 text-sm text-[#666]">Loading markets...</p>
             </div>
           ) : markets.length === 0 ? (
-            <div className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
+            <div
+              className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center animate-fadeSlideUp"
+              style={{ animationDelay: "0.2s" }}
+            >
               <span className="text-4xl text-[#333] block mb-4">◎</span>
               <h3 className="text-base text-[#fafafa] mb-2">
                 No markets being monitored
@@ -97,10 +107,11 @@ export default function MarketsPage() {
               </p>
             </div>
           ) : (
-            markets.map((market) => (
+            markets.map((market, index) => (
               <div
                 key={market._id}
-                className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 hover:border-[#252525] hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all"
+                className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 hover:border-[#252525] hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all animate-fadeSlideUp"
+                style={{ animationDelay: `${0.15 + index * 0.05}s` }}
               >
                 <div className="flex justify-between items-center mb-3">
                   <span className="px-2 py-1 bg-[rgba(245,158,11,0.1)] text-[var(--accent)] rounded text-[0.65rem] font-semibold uppercase tracking-wider">
@@ -168,7 +179,10 @@ export default function MarketsPage() {
         </div>
 
         {/* Automation info footer */}
-        <div className="mt-8 pt-6 border-t border-[#1a1a1a]">
+        <div
+          className="mt-8 pt-6 border-t border-[#1a1a1a] animate-fadeSlideUp"
+          style={{ animationDelay: "0.6s" }}
+        >
           <div className="flex flex-wrap gap-6 text-[0.7rem] text-[#444]">
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
