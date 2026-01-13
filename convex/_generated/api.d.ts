@@ -12,6 +12,7 @@ import type * as accounts from "../accounts.js";
 import type * as activityFeed from "../activityFeed.js";
 import type * as agentRuns from "../agentRuns.js";
 import type * as alerts from "../alerts.js";
+import type * as autonomousActions from "../autonomousActions.js";
 import type * as crons from "../crons.js";
 import type * as markets from "../markets.js";
 import type * as seed from "../seed.js";
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   activityFeed: typeof activityFeed;
   agentRuns: typeof agentRuns;
   alerts: typeof alerts;
+  autonomousActions: typeof autonomousActions;
   crons: typeof crons;
   markets: typeof markets;
   seed: typeof seed;
