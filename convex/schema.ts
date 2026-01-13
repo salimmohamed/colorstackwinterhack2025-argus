@@ -158,6 +158,7 @@ export default defineSchema({
       v.literal("agent_started"),
       v.literal("agent_completed"),
       v.literal("market_synced"),
+      v.literal("detection_completed"),
     ),
     payload: v.any(),
     timestamp: v.number(),

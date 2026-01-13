@@ -2,7 +2,6 @@
 
 import { useQuery } from "convex/react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 
 function formatVolume(vol: number) {
@@ -33,48 +32,13 @@ function formatPrice(price: number): string {
   return `${(price * 100).toFixed(0)}%`;
 }
 
-const SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-
 export default function MarketsPage() {
   const markets = useQuery(api.markets.listActive, {});
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [_lastSyncTime, setLastSyncTime] = useState<number | null>(null);
-  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const syncMarkets = useCallback(async () => {
-    if (isSyncing) return;
-
-    setIsSyncing(true);
-    try {
-      const res = await fetch("/api/markets/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 10 }),
-      });
-      const data = await res.json();
-      console.log("Sync result:", data);
-      setLastSyncTime(Date.now());
-    } catch (e) {
-      console.error("Sync failed:", e);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [isSyncing]);
-
-  // Auto-sync every 30 minutes
-  useEffect(() => {
-    // Start the interval
-    syncIntervalRef.current = setInterval(() => {
-      console.log("[Auto-sync] Triggering market sync...");
-      syncMarkets();
-    }, SYNC_INTERVAL_MS);
-
-    return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
-    };
-  }, [syncMarkets]);
+  // Find the most recent sync time across all markets
+  const lastSyncTime = markets?.reduce((latest, market) => {
+    return market.lastSyncedAt > latest ? market.lastSyncedAt : latest;
+  }, 0);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-8">
@@ -82,12 +46,16 @@ export default function MarketsPage() {
         {/* Back link */}
         <Link
           href="/"
-          className="text-[var(--text-dim)] text-xs tracking-[0.1em] uppercase hover:text-[var(--accent)] transition-colors mb-8 inline-block"
+          className="text-[var(--text-dim)] text-xs tracking-[0.1em] uppercase hover:text-[var(--accent)] transition-colors mb-8 inline-block animate-fadeSlideUp"
+          style={{ animationDelay: "0s" }}
         >
           ← Back
         </Link>
 
-        <header className="flex justify-between items-start pb-6 border-b border-[#1a1a1a] mb-8">
+        <header
+          className="flex justify-between items-start pb-6 border-b border-[#1a1a1a] mb-8 animate-fadeSlideUp"
+          style={{ animationDelay: "0.1s" }}
+        >
           <div>
             <h1 className="text-2xl font-semibold text-[#fafafa]">
               ◎ Monitored Markets
@@ -96,51 +64,54 @@ export default function MarketsPage() {
               Political prediction markets under surveillance
             </p>
           </div>
-          <button
-            type="button"
-            onClick={syncMarkets}
-            disabled={isSyncing}
-            className={`flex items-center gap-2 px-4 py-2 bg-transparent border border-[#252525] rounded text-[#888] text-xs transition-all ${
-              isSyncing
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_15px_rgba(245,158,11,0.15)]"
-            }`}
-          >
-            <span className={isSyncing ? "animate-spin" : ""}>↻</span>
-            {isSyncing ? "Syncing..." : "Sync Markets"}
-          </button>
+
+          {/* Auto-sync status indicator */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] rounded text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
+              <span className="text-[#22c55e]">Auto-sync enabled</span>
+            </div>
+            {lastSyncTime && lastSyncTime > 0 && (
+              <span className="text-[0.65rem] text-[#444]">
+                Last sync: {formatTime(lastSyncTime)} · Next in ~30m
+              </span>
+            )}
+          </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {markets === undefined ? (
-            <div className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
+            <div
+              className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center animate-fadeSlideUp"
+              style={{ animationDelay: "0.2s" }}
+            >
               <span className="text-3xl text-[var(--accent)] animate-pulse">
                 ◉
               </span>
               <p className="mt-4 text-sm text-[#666]">Loading markets...</p>
             </div>
           ) : markets.length === 0 ? (
-            <div className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
+            <div
+              className="col-span-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center animate-fadeSlideUp"
+              style={{ animationDelay: "0.2s" }}
+            >
               <span className="text-4xl text-[#333] block mb-4">◎</span>
               <h3 className="text-base text-[#fafafa] mb-2">
                 No markets being monitored
               </h3>
-              <p className="text-sm text-[#666] mb-6">
-                Add a Polymarket market to start monitoring for insider trading.
+              <p className="text-sm text-[#666] mb-2">
+                Markets will appear automatically after the next sync cycle.
               </p>
-              <button
-                type="button"
-                onClick={syncMarkets}
-                className="px-4 py-2 bg-transparent border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
-              >
-                Sync from Polymarket
-              </button>
+              <p className="text-xs text-[#444]">
+                Auto-sync runs every 30 minutes
+              </p>
             </div>
           ) : (
-            markets.map((market) => (
+            markets.map((market, index) => (
               <div
                 key={market._id}
-                className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 hover:border-[#252525] hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all"
+                className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 hover:border-[#252525] hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all animate-fadeSlideUp"
+                style={{ animationDelay: `${0.15 + index * 0.05}s` }}
               >
                 <div className="flex justify-between items-center mb-3">
                   <span className="px-2 py-1 bg-[rgba(245,158,11,0.1)] text-[var(--accent)] rounded text-[0.65rem] font-semibold uppercase tracking-wider">
@@ -205,6 +176,27 @@ export default function MarketsPage() {
               </div>
             ))
           )}
+        </div>
+
+        {/* Automation info footer */}
+        <div
+          className="mt-8 pt-6 border-t border-[#1a1a1a] animate-fadeSlideUp"
+          style={{ animationDelay: "0.6s" }}
+        >
+          <div className="flex flex-wrap gap-6 text-[0.7rem] text-[#444]">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
+              <span>Market sync: every 30 min</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+              <span>Rules detection: every 2 hours</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+              <span>AI analysis: every 12 hours</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
