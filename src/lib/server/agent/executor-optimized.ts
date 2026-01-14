@@ -366,6 +366,21 @@ export async function flagSuspiciousAccountOptimized(params: {
     const accountData = accountCache.get(normalizedAddress)?.data;
     const fullAddress = accountData?.addr || normalizedAddress;
 
+    // HARD FILTER: Reject accounts with negative or low profit
+    // Insiders make money. If you're losing, you're not an insider.
+    const MIN_PROFIT_TO_FLAG = 100; // $100 minimum
+    const accountProfit = accountData?.pnl || 0;
+    if (accountProfit < MIN_PROFIT_TO_FLAG) {
+      console.log(
+        `[Agent] REJECTED FLAG: ${normalizedAddress.slice(0, 10)} - profit $${accountProfit.toLocaleString()} below threshold`,
+      );
+      return {
+        success: false,
+        id: "rejected",
+        reason: `Account has ${accountProfit < 0 ? "negative" : "insufficient"} profit ($${accountProfit.toLocaleString()}). Insiders make money - only flag profitable accounts.`,
+      };
+    }
+
     // Upsert account
     const metrics = params.evidence?.metrics as
       | Record<string, unknown>
