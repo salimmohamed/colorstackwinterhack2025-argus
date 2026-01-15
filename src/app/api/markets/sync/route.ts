@@ -1,10 +1,12 @@
 import { ConvexHttpClient } from "convex/browser";
 import { type NextRequest, NextResponse } from "next/server";
 import {
+  type CategorizedEvent,
   type GammaEvent,
   type GammaMarket,
   gammaClient,
 } from "@/lib/server/polymarket/gamma";
+import { DEFAULT_TOTAL_MARKET_LIMIT } from "@/lib/config/market-categories";
 import { api } from "../../../../../convex/_generated/api";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -66,8 +68,9 @@ function isPlaceholderMarket(market: GammaMarket): boolean {
 
 /**
  * Convert Gamma event to our Convex market format
+ * Supports both regular GammaEvent (defaults to "politics") and CategorizedEvent
  */
-function convertEventToConvexMarket(event: GammaEvent) {
+function convertEventToConvexMarket(event: GammaEvent | CategorizedEvent) {
   const realMarkets = event.markets.filter((m) => !isPlaceholderMarket(m));
 
   const outcomes = realMarkets.map((market) => {
@@ -109,11 +112,14 @@ function convertEventToConvexMarket(event: GammaEvent) {
 
   outcomes.sort((a, b) => b.price - a.price);
 
+  // Use categoryId from CategorizedEvent, or default to "us-politics"
+  const category = "categoryId" in event ? event.categoryId : "us-politics";
+
   return {
     polymarketId: event.id,
     slug: event.slug,
     question: event.title,
-    category: "politics",
+    category,
     endDate: event.endDate ? new Date(event.endDate).getTime() : undefined,
     isActive: event.active,
     totalVolume: event.volume,
@@ -124,10 +130,10 @@ function convertEventToConvexMarket(event: GammaEvent) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const limit = body.limit || 10;
+    const limit = body.limit || DEFAULT_TOTAL_MARKET_LIMIT;
     const clear = body.clear !== false;
 
-    console.log(`[Sync] Fetching top ${limit} political events...`);
+    console.log(`[Sync] Fetching top ${limit} markets across all categories...`);
 
     if (clear) {
       console.log("[Sync] Clearing existing markets...");
@@ -135,11 +141,9 @@ export async function POST(request: NextRequest) {
       console.log(`[Sync] Deleted ${result.deleted} old markets`);
     }
 
-    const events = (await (gammaClient as any).getTopPoliticalEvents(
-      limit,
-    )) as GammaEvent[];
+    const events = await gammaClient.getTopMarkets(limit);
 
-    console.log(`[Sync] Found ${events.length} political events`);
+    console.log(`[Sync] Found ${events.length} markets across categories`);
 
     const results = await Promise.all(
       events.map(async (event) => {
@@ -149,6 +153,7 @@ export async function POST(request: NextRequest) {
           return {
             slug: event.slug,
             title: event.title,
+            category: event.categoryId,
             volume: `$${(event.volume / 1000000).toFixed(1)}M`,
             success: true,
             id,
@@ -159,6 +164,7 @@ export async function POST(request: NextRequest) {
           return {
             slug: event.slug,
             title: event.title,
+            category: event.categoryId,
             success: false,
             error: message,
           };
@@ -191,15 +197,29 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const events = (await (gammaClient as any).getTopPoliticalEvents(
-      10,
-    )) as GammaEvent[];
+    const events = await gammaClient.getTopMarkets(DEFAULT_TOTAL_MARKET_LIMIT);
+
+    // Group by category for summary
+    const byCategory = events.reduce(
+      (acc, e) => {
+        const cat = e.categoryId;
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(e);
+        return acc;
+      },
+      {} as Record<string, typeof events>,
+    );
 
     return NextResponse.json({
-      message: "Top political events that would be synced",
+      message: `Top ${events.length} markets across all categories that would be synced`,
+      summary: Object.entries(byCategory).map(([cat, evts]) => ({
+        category: cat,
+        count: evts.length,
+      })),
       events: events.map((e) => ({
         slug: e.slug,
         title: e.title,
+        category: e.categoryId,
         volume: `$${(e.volume / 1000000).toFixed(1)}M`,
         markets: e.markets.length,
       })),

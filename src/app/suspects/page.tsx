@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PixelBlastEye } from "@/components/ui/pixel-blast-eye";
 import { api } from "../../../convex/_generated/api";
 
@@ -28,6 +28,86 @@ const SEVERITY_CONFIG = {
   medium: { label: "MEDIUM", color: "var(--text-dim)" },
   low: { label: "LOW", color: "var(--text-muted)" },
 };
+
+type SortOption = "risk" | "profit" | "recent";
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "risk", label: "Risk Score" },
+  { value: "profit", label: "Largest Profit" },
+  { value: "recent", label: "Most Recent" },
+];
+
+/* ============================================
+   SORT DROPDOWN COMPONENT
+   ============================================ */
+function SortDropdown({
+  value,
+  onChange,
+}: {
+  value: SortOption;
+  onChange: (value: SortOption) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const currentLabel = SORT_OPTIONS.find((o) => o.value === value)?.label;
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#252525] transition-all group"
+      >
+        <span className="text-[0.6rem] tracking-[0.12em] uppercase text-[var(--text-muted)]">
+          Sort
+        </span>
+        <span className="text-[0.65rem] tracking-[0.1em] uppercase text-[var(--foreground)]">
+          {currentLabel}
+        </span>
+        <span
+          className="text-[0.5rem] text-[var(--text-muted)] transition-transform duration-200"
+          style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 bg-[#0a0a0a] border border-[#1a1a1a] z-50 min-w-[140px] animate-fadeIn">
+          {SORT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`
+                w-full text-left px-3 py-2 text-[0.65rem] tracking-[0.1em] uppercase transition-all
+                ${value === option.value
+                  ? "text-[var(--accent)] bg-[rgba(245,158,11,0.05)]"
+                  : "text-[var(--text-dim)] hover:text-[var(--foreground)] hover:bg-[#111]"
+                }
+              `}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function formatTimeAgo(timestamp: number) {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -247,13 +327,33 @@ export default function SuspectsPage() {
   const alerts = useQuery(api.alerts.listRecent, { limit: 100 });
   const [openId, setOpenId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("risk");
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const grouped = useMemo(() => {
+  // Helper to extract metrics
+  const getMetric = (alert: Alert, key: string): number => {
+    return ((alert.evidence?.metrics as Record<string, unknown>)?.[key] as number) || 0;
+  };
+
+  // Sorted flat list for profit/recent views
+  const sortedAlerts = useMemo(() => {
     if (!alerts) return null;
+    const list = [...alerts] as Alert[];
+
+    if (sortBy === "profit") {
+      return list.sort((a, b) => getMetric(b, "totalProfit") - getMetric(a, "totalProfit"));
+    } else if (sortBy === "recent") {
+      return list.sort((a, b) => b.createdAt - a.createdAt);
+    }
+    return null; // Use grouped view for risk
+  }, [alerts, sortBy]);
+
+  // Grouped view for risk sorting (original behavior)
+  const grouped = useMemo(() => {
+    if (!alerts || sortBy !== "risk") return null;
     const g: Record<Severity, Alert[]> = {
       critical: [],
       high: [],
@@ -266,26 +366,22 @@ export default function SuspectsPage() {
     // Sort each group by risk score (highest first)
     Object.keys(g).forEach((key) => {
       g[key as Severity].sort((a, b) => {
-        const riskA =
-          ((a.evidence?.metrics as Record<string, unknown>)
-            ?.riskScore as number) || 0;
-        const riskB =
-          ((b.evidence?.metrics as Record<string, unknown>)
-            ?.riskScore as number) || 0;
-        return riskB - riskA;
+        return getMetric(b, "riskScore") - getMetric(a, "riskScore");
       });
     });
     return g;
-  }, [alerts]);
+  }, [alerts, sortBy]);
 
-  const counts = grouped
-    ? {
-        critical: grouped.critical.length,
-        high: grouped.high.length,
-        medium: grouped.medium.length,
-        low: grouped.low.length,
-      }
-    : { critical: 0, high: 0, medium: 0, low: 0 };
+  const counts = useMemo(() => {
+    const source = sortedAlerts || alerts;
+    if (!source) return { critical: 0, high: 0, medium: 0, low: 0 };
+    return {
+      critical: source.filter((a) => a.severity === "critical").length,
+      high: source.filter((a) => a.severity === "high").length,
+      medium: source.filter((a) => a.severity === "medium").length,
+      low: source.filter((a) => a.severity === "low").length,
+    };
+  }, [sortedAlerts, alerts]);
 
   const totalCount = counts.critical + counts.high + counts.medium + counts.low;
 
@@ -335,7 +431,7 @@ export default function SuspectsPage() {
       <div className="relative z-10 min-h-screen">
         <div className="max-w-2xl min-h-screen p-8 flex flex-col">
           {/* Header */}
-          <header className="mb-8">
+          <header className="mb-8 relative z-20">
             <nav
               className="mb-6 animate-fadeSlideUp"
               style={{ animationDelay: "0s" }}
@@ -349,21 +445,24 @@ export default function SuspectsPage() {
             </nav>
 
             <div
-              className="animate-fadeSlideUp"
+              className="flex items-start justify-between gap-4 animate-fadeSlideUp"
               style={{ animationDelay: "0.1s" }}
             >
-              <p className="text-[0.6rem] tracking-[0.35em] text-[var(--text-muted)] uppercase mb-2">
-                Insider Detection
-              </p>
-              <h1 className="font-serif text-3xl text-[var(--foreground)]">
-                Suspected Insiders
-              </h1>
-              {mounted && totalCount > 0 && (
-                <p className="text-sm text-[var(--text-dim)] mt-2">
-                  {totalCount} account{totalCount !== 1 ? "s" : ""} flagged for
-                  review
+              <div>
+                <p className="text-[0.6rem] tracking-[0.35em] text-[var(--text-muted)] uppercase mb-2">
+                  Insider Detection
                 </p>
-              )}
+                <h1 className="font-serif text-3xl text-[var(--foreground)]">
+                  Suspected Insiders
+                </h1>
+                {mounted && totalCount > 0 && (
+                  <p className="text-sm text-[var(--text-dim)] mt-2">
+                    {totalCount} account{totalCount !== 1 ? "s" : ""} flagged for
+                    review
+                  </p>
+                )}
+              </div>
+              <SortDropdown value={sortBy} onChange={setSortBy} />
             </div>
           </header>
 
@@ -382,7 +481,7 @@ export default function SuspectsPage() {
 
           {/* Suspects List */}
           <section className="flex-1 overflow-auto">
-            {!grouped ? (
+            {!alerts ? (
               <div
                 className="flex flex-col items-center py-16 animate-fadeSlideUp"
                 style={{ animationDelay: "0.3s" }}
@@ -410,8 +509,24 @@ export default function SuspectsPage() {
                   detected.
                 </p>
               </div>
-            ) : (
-              <div className="space-y-3">
+            ) : sortedAlerts ? (
+              /* Flat list for profit/recent sorting */
+              <div key={sortBy} className="space-y-2">
+                {sortedAlerts.map((alert, i) => (
+                  <SuspectCard
+                    key={alert._id}
+                    alert={alert}
+                    isOpen={openId === alert._id}
+                    onToggle={() =>
+                      setOpenId(openId === alert._id ? null : alert._id)
+                    }
+                    delay={`${0.35 + i * 0.05}s`}
+                  />
+                ))}
+              </div>
+            ) : grouped ? (
+              /* Grouped view for risk sorting */
+              <div key={sortBy} className="space-y-3">
                 {/* Critical & High Priority */}
                 {[...grouped.critical, ...grouped.high].length > 0 && (
                   <div className="space-y-2">
@@ -460,7 +575,7 @@ export default function SuspectsPage() {
                   </>
                 )}
               </div>
-            )}
+            ) : null}
           </section>
 
           {/* Footer */}

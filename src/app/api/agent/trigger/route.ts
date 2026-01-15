@@ -1,10 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { ConvexHttpClient } from "convex/browser";
 import { runAgentLoop, runOptimizedAgentLoop } from "@/lib/server/agent";
+import { api } from "../../../../../convex/_generated/api";
+
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const marketIds = body.marketIds || ["2028-presidential-election"];
+
+    // If no marketIds provided, fetch all active markets from DB
+    let marketIds: string[] = body.marketIds;
+    if (!marketIds || marketIds.length === 0) {
+      const markets = await convex.query(api.markets.listActive, {});
+      marketIds = markets.map((m) => m.slug);
+      console.log(`[API] No marketIds provided, fetched ${marketIds.length} active markets from DB`);
+    }
     const useOptimized = body.optimized !== false; // Default to optimized
 
     console.log(
@@ -19,7 +30,7 @@ export async function POST(request: NextRequest) {
         : undefined;
 
       const result = await runOptimizedAgentLoop(marketIds, {
-        maxIterations: body.maxIterations || 10,
+        maxIterations: body.maxIterations || 100,
         checkpoints: checkpoints as Map<string, number> | undefined,
       });
 
@@ -36,7 +47,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Use full agent (more expensive)
       const result = await runAgentLoop(marketIds, {
-        maxIterations: body.maxIterations || 10,
+        maxIterations: body.maxIterations || 100,
       });
 
       return NextResponse.json({

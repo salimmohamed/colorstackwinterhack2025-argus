@@ -49,7 +49,7 @@ export interface OptimizedAgentResult {
 }
 
 const DEFAULT_CONFIG: OptimizedAgentConfig = {
-  maxIterations: 10, // Reduced from 20
+  maxIterations: 50, // Balanced iteration count
   maxTokens: 2048, // Reduced from 4096
 };
 
@@ -134,27 +134,11 @@ Be efficient - skip accounts you've already analyzed.`;
       }
 
       // Keep conversation manageable while preserving complete tool use cycles
-      // Bedrock requires: user, assistant(tool_use), user(tool_result) to stay together
+      // Bedrock requires: assistant(tool_use) must precede user(tool_result)
       if (recentMessages.length > 7) {
-        // Find the last safe slice point that keeps complete exchanges
-        // We need to keep pairs: (assistant + user) or start fresh after a user message
-        let sliceStart = recentMessages.length - 6;
-
-        // Walk backwards to find a safe starting point (must be a user message)
-        while (sliceStart > 1 && recentMessages[sliceStart]?.role === "assistant") {
-          sliceStart++;
-        }
-
-        // Ensure we keep at least 4 messages for context
-        if (recentMessages.length - sliceStart < 4) {
-          sliceStart = Math.max(1, recentMessages.length - 4);
-          // Adjust again if we landed on assistant
-          if (recentMessages[sliceStart]?.role === "assistant") {
-            sliceStart++;
-          }
-        }
-
-        recentMessages = [recentMessages[0], ...recentMessages.slice(sliceStart)];
+        // Reset to just the initial prompt to avoid tool_use/tool_result mismatches
+        // The summary in recentMessages[0] will preserve context
+        recentMessages = [recentMessages[0]];
       }
 
       const response = await client.converse({

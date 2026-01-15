@@ -71,8 +71,8 @@ export interface Evidence {
 
 // Detection thresholds based on real insider patterns
 const THRESHOLDS = {
-  // HARD REQUIREMENT: Must be profitable
-  MIN_PROFIT_TO_FLAG: 1000, // $1K minimum profit to even consider
+  // HARD REQUIREMENT: Must be profitable (lowered for more visibility)
+  MIN_PROFIT_TO_FLAG: 100, // $100 minimum profit to consider
 
   // Fresh wallet (insiders use new accounts)
   FRESH_WALLET_MAX_TRADES: 20,

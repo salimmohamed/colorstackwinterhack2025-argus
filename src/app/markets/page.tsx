@@ -121,9 +121,14 @@ export default function MarketsPage() {
                     {formatVolume(market.totalVolume)}
                   </span>
                 </div>
-                <h3 className="text-[0.95rem] font-medium text-[#fafafa] mb-4 leading-snug">
+                <a
+                  href={`https://polymarket.com/event/${market.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-[0.95rem] font-medium text-[#fafafa] mb-4 leading-snug hover:text-[var(--accent)] transition-colors"
+                >
                   {market.question}
-                </h3>
+                </a>
                 <div className="flex flex-col gap-2 mb-4">
                   {market.outcomes
                     .filter((outcome) => outcome.price > 0.005) // Hide outcomes with <1% chance

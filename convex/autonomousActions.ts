@@ -15,6 +15,41 @@ import type { Id } from "./_generated/dataModel";
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 
 // =============================================================================
+// MARKET CATEGORIES CONFIG
+// NOTE: Convex functions cannot import from src/ - the convex/ directory is
+// deployed separately. This config must be kept in sync with:
+// src/lib/config/market-categories.ts
+// =============================================================================
+
+interface MarketCategory {
+  id: string;
+  name: string;
+  maxMarkets: number;
+  tagIds: string[];
+  keywords: string[];
+}
+
+/**
+ * Market categories for insider trading detection.
+ * Keep in sync with src/lib/config/market-categories.ts
+ */
+const MARKET_CATEGORIES: MarketCategory[] = [
+  {
+    id: "us-politics",
+    name: "US Politics",
+    maxMarkets: 35,
+    tagIds: ["24", "1101", "100199", "766", "126", "298", "325"],
+    keywords: [
+      "president", "election", "nominee", "trump", "democrat", "republican",
+      "congress", "senate", "governor", "vote", "poll", "biden", "harris", "vance",
+      "fed", "supreme court", "tariff", "deport",
+    ],
+  },
+];
+
+const DEFAULT_TOTAL_MARKET_LIMIT = 35;
+
+// =============================================================================
 // MARKET SYNC ACTION
 // =============================================================================
 
@@ -36,8 +71,111 @@ interface GammaEvent {
   endDate: string | null;
 }
 
+interface CategorizedEvent extends GammaEvent {
+  categoryId: string;
+  categoryName: string;
+}
+
 /**
- * Fetch political events from Gamma API
+ * Check if text matches any keyword in a category
+ */
+function matchesCategoryKeywords(text: string, category: MarketCategory): boolean {
+  const lower = text.toLowerCase();
+  return category.keywords.some((kw) => lower.includes(kw.toLowerCase()));
+}
+
+/**
+ * Fetch events by tag ID from Gamma API
+ */
+async function fetchEventsByTag(tagId: string, limit = 30): Promise<GammaEvent[]> {
+  const url = `${GAMMA_API_BASE}/events?tag_id=${tagId}&active=true&closed=false&limit=${limit}&order=volume&ascending=false`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    console.warn(`[Cron] Failed to fetch events for tag ${tagId}: ${response.status}`);
+    return [];
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch events for a specific category using tags
+ */
+async function fetchEventsForCategory(category: MarketCategory): Promise<CategorizedEvent[]> {
+  const allEvents: GammaEvent[] = [];
+  const seenIds = new Set<string>();
+
+  // Fetch events from each tag in the category
+  for (const tagId of category.tagIds) {
+    try {
+      const events = await fetchEventsByTag(tagId);
+      for (const event of events) {
+        if (!seenIds.has(event.id)) {
+          seenIds.add(event.id);
+          allEvents.push(event);
+        }
+      }
+      // Rate limit between tag fetches
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch (error) {
+      console.warn(`[Cron] Error fetching tag ${tagId}:`, error);
+    }
+  }
+
+  // Filter by keywords (secondary validation)
+  const validEvents = allEvents.filter((event) =>
+    matchesCategoryKeywords(event.title, category)
+  );
+
+  // If keyword filtering removed too many, use all events from tags
+  const eventsToUse = validEvents.length >= 3 ? validEvents : allEvents;
+
+  // Sort by volume and limit
+  eventsToUse.sort((a, b) => b.volume - a.volume);
+  const limited = eventsToUse.slice(0, category.maxMarkets);
+
+  // Add category info
+  return limited.map((event) => ({
+    ...event,
+    categoryId: category.id,
+    categoryName: category.name,
+  }));
+}
+
+/**
+ * Fetch markets across all enabled categories
+ * Uses fixed allocation per category for diversity
+ */
+async function fetchMarketsForCategories(totalLimit = DEFAULT_TOTAL_MARKET_LIMIT): Promise<CategorizedEvent[]> {
+  const allMarkets: CategorizedEvent[] = [];
+
+  // Calculate per-category limits proportionally
+  const totalConfigured = MARKET_CATEGORIES.reduce((sum, c) => sum + c.maxMarkets, 0);
+  const scaleFactor = totalLimit / totalConfigured;
+
+  for (const category of MARKET_CATEGORIES) {
+    try {
+      const categoryLimit = Math.max(1, Math.round(category.maxMarkets * scaleFactor));
+      const events = await fetchEventsForCategory({
+        ...category,
+        maxMarkets: categoryLimit,
+      });
+      allMarkets.push(...events);
+      console.log(`[Cron] Fetched ${events.length} events for ${category.name}`);
+    } catch (error) {
+      console.error(`[Cron] Error fetching category ${category.id}:`, error);
+    }
+  }
+
+  // Final sort by volume and apply total limit
+  allMarkets.sort((a, b) => b.volume - a.volume);
+  return allMarkets.slice(0, totalLimit);
+}
+
+/**
+ * Legacy: Fetch political events from Gamma API (kept for backward compatibility)
+ * @deprecated Use fetchMarketsForCategories instead
  */
 async function fetchPoliticalEvents(limit = 10): Promise<GammaEvent[]> {
   const url = `${GAMMA_API_BASE}/events?active=true&closed=false&limit=100`;
@@ -122,6 +260,7 @@ function isPlaceholderMarket(market: GammaMarket): boolean {
 /**
  * Sync markets from Polymarket Gamma API
  * Called every 30 minutes by cron
+ * Now fetches from multiple categories (politics, regulatory, geopolitics, corporate)
  */
 export const syncMarketsFromPolymarket = internalAction({
   args: {},
@@ -129,8 +268,8 @@ export const syncMarketsFromPolymarket = internalAction({
     console.log("[Cron] Starting market sync from Polymarket...");
 
     try {
-      const events = await fetchPoliticalEvents(10);
-      console.log(`[Cron] Fetched ${events.length} political events`);
+      const events = await fetchMarketsForCategories(DEFAULT_TOTAL_MARKET_LIMIT);
+      console.log(`[Cron] Fetched ${events.length} events across all categories`);
 
       let synced = 0;
       let failed = 0;
@@ -173,7 +312,7 @@ export const syncMarketsFromPolymarket = internalAction({
             polymarketId: event.id,
             slug: event.slug,
             question: event.title,
-            category: "politics",
+            category: event.categoryId,
             endDate: event.endDate
               ? new Date(event.endDate).getTime()
               : undefined,
@@ -377,7 +516,7 @@ function analyzeTradesForSuspiciousActivity(
       riskScore += 10;
     }
 
-    if (riskScore >= 30) {
+    if (riskScore >= 20) {
       suspects.push({
         wallet,
         riskScore,
@@ -491,7 +630,7 @@ export const upsertSuspect = internalMutation({
           riskScore,
           flags,
           totalVolume,
-          isFlagged: riskScore >= 50,
+          isFlagged: riskScore >= 30,
           lastActivityAt: now,
         });
       } else {
@@ -517,7 +656,7 @@ export const upsertSuspect = internalMutation({
       riskScore,
       flags,
       lastActivityAt: now,
-      isFlagged: riskScore >= 50,
+      isFlagged: riskScore >= 30,
     });
   },
 });
@@ -563,7 +702,7 @@ export const triggerAIAgent = internalAction({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           optimized: true,
-          maxIterations: 10,
+          maxIterations: 100,
         }),
       });
 
