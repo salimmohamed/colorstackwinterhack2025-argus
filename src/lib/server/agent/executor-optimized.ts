@@ -377,7 +377,6 @@ export async function flagSuspiciousAccountOptimized(params: {
       return {
         success: false,
         id: "rejected",
-        reason: `Account has ${accountProfit < 0 ? "negative" : "insufficient"} profit ($${accountProfit.toLocaleString()}). Insiders make money - only flag profitable accounts.`,
       };
     }
 
