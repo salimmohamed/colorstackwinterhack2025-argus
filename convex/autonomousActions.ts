@@ -15,7 +15,10 @@ import type { Id } from "./_generated/dataModel";
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 
 // =============================================================================
-// MARKET CATEGORIES CONFIG (inlined for Convex - must match src/lib/config/market-categories.ts)
+// MARKET CATEGORIES CONFIG
+// NOTE: Convex functions cannot import from src/ - the convex/ directory is
+// deployed separately. This config must be kept in sync with:
+// src/lib/config/market-categories.ts
 // =============================================================================
 
 interface MarketCategory {
