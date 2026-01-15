@@ -49,7 +49,7 @@ export interface OptimizedAgentResult {
 }
 
 const DEFAULT_CONFIG: OptimizedAgentConfig = {
-  maxIterations: 100, // Increased to analyze all suspicious accounts
+  maxIterations: 50, // Balanced iteration count
   maxTokens: 2048, // Reduced from 4096
 };
 
