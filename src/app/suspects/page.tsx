@@ -67,7 +67,10 @@ function SortDropdown({
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#252525] transition-all group"
+        aria-label="Sort alerts"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className="flex items-center gap-2 px-3 py-2 bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#252525] transition-all group focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
       >
         <span className="text-[0.6rem] tracking-[0.12em] uppercase text-[var(--text-muted)]">
           Sort
@@ -93,7 +96,7 @@ function SortDropdown({
                 setIsOpen(false);
               }}
               className={`
-                w-full text-left px-3 py-2 text-[0.65rem] tracking-[0.1em] uppercase transition-all
+                w-full text-left px-3 py-2 text-[0.65rem] tracking-[0.1em] uppercase transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-inset
                 ${value === option.value
                   ? "text-[var(--accent)] bg-[rgba(245,158,11,0.05)]"
                   : "text-[var(--text-dim)] hover:text-[var(--foreground)] hover:bg-[#111]"
@@ -182,8 +185,10 @@ function SuspectCard({
             onToggle();
           }
         }}
+        aria-expanded={isOpen}
+        aria-label="Expand alert details"
         className={`
-          bg-[#0a0a0a] border cursor-pointer transition-all
+          bg-[#0a0a0a] border cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]
           ${isHighPriority ? "border-[rgba(245,158,11,0.3)]" : "border-[#1a1a1a]"}
           ${isOpen ? "border-[#252525]" : ""}
           hover:border-[#252525]
@@ -467,7 +472,7 @@ export default function SuspectsPage() {
           </header>
 
           {/* Stats Grid */}
-          <section className="grid grid-cols-4 gap-3 mb-8">
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
             <StatCard
               count={counts.critical}
               label="Critical"
