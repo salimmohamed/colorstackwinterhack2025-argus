@@ -57,10 +57,13 @@ export default function MarketsPage() {
           style={{ animationDelay: "0.1s" }}
         >
           <div>
-            <h1 className="text-2xl font-semibold text-[#fafafa]">
-              ◎ Monitored Markets
+            <p className="text-[0.6rem] tracking-[0.35em] text-[var(--text-muted)] uppercase mb-2">
+              Market Surveillance
+            </p>
+            <h1 className="font-serif text-3xl text-[var(--foreground)]">
+              Monitored Markets
             </h1>
-            <p className="mt-2 text-sm text-[#666]">
+            <p className="mt-2 text-sm text-[var(--text-dim)]">
               Political prediction markets under surveillance
             </p>
           </div>
