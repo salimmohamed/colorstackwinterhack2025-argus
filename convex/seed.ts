@@ -1,11 +1,30 @@
-import { mutation } from "./_generated/server";
+import { v } from "convex/values";
+import { internalMutation } from "./_generated/server";
 
 /**
  * Seed REAL insider trading cases as if detected by ARGUS
  * Based on documented Polymarket incidents
+ * Internal only - dev/admin operation
  */
-export const seedInsiderCases = mutation({
+export const seedInsiderCases = internalMutation({
   args: {},
+  returns: v.object({
+    success: v.boolean(),
+    seeded: v.object({
+      accounts: v.number(),
+      alerts: v.number(),
+      agentRuns: v.number(),
+      activityFeed: v.number(),
+    }),
+    cases: v.array(
+      v.object({
+        name: v.string(),
+        wallet: v.string(),
+        profit: v.string(),
+        detectedBy: v.string(),
+      })
+    ),
+  }),
   handler: async (ctx) => {
     const now = Date.now();
 
