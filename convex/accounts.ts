@@ -1,9 +1,43 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
+
+// Account validator for return types
+const accountValidator = v.object({
+  _id: v.id("accounts"),
+  _creationTime: v.number(),
+  address: v.string(),
+  displayName: v.optional(v.string()),
+  previousNames: v.array(v.string()),
+  firstSeenAt: v.number(),
+  createdAt: v.optional(v.number()),
+  accountAgeDays: v.optional(v.number()),
+  totalTrades: v.number(),
+  totalVolume: v.number(),
+  winCount: v.number(),
+  lossCount: v.number(),
+  winRate: v.number(),
+  riskScore: v.number(),
+  flags: v.array(v.string()),
+  lastActivityAt: v.number(),
+  isFlagged: v.boolean(),
+  lastAnalyzedAt: v.optional(v.number()),
+  cachedProfile: v.optional(
+    v.object({
+      profitLossUsd: v.number(),
+      avgTradeSize: v.number(),
+      uniqueMarkets: v.number(),
+      cachedAt: v.number(),
+    })
+  ),
+  analysisStatus: v.optional(
+    v.union(v.literal("pending"), v.literal("cleared"), v.literal("confirmed"))
+  ),
+});
 
 // Get account by wallet address
 export const getByAddress = query({
   args: { address: v.string() },
+  returns: v.union(accountValidator, v.null()),
   handler: async (ctx, { address }) => {
     return await ctx.db
       .query("accounts")
@@ -15,6 +49,7 @@ export const getByAddress = query({
 // List flagged accounts
 export const listFlagged = query({
   args: {},
+  returns: v.array(accountValidator),
   handler: async (ctx) => {
     return await ctx.db
       .query("accounts")
@@ -26,6 +61,7 @@ export const listFlagged = query({
 // List accounts by risk score (highest first)
 export const listByRiskScore = query({
   args: { limit: v.optional(v.number()) },
+  returns: v.array(accountValidator),
   handler: async (ctx, { limit }) => {
     const accounts = await ctx.db
       .query("accounts")
@@ -51,6 +87,7 @@ export const upsert = mutation({
     riskScore: v.optional(v.number()),
     flags: v.optional(v.array(v.string())),
   },
+  returns: v.id("accounts"),
   handler: async (ctx, args) => {
     const normalizedAddress = args.address.toLowerCase();
     const existing = await ctx.db
@@ -112,6 +149,7 @@ export const flag = mutation({
     flags: v.array(v.string()),
     riskScore: v.number(),
   },
+  returns: v.id("accounts"),
   handler: async (ctx, { address, flags, riskScore }) => {
     const account = await ctx.db
       .query("accounts")
@@ -135,14 +173,16 @@ export const flag = mutation({
 // List all accounts
 export const listAll = query({
   args: {},
+  returns: v.array(accountValidator),
   handler: async (ctx) => {
     return await ctx.db.query("accounts").collect();
   },
 });
 
-// Delete all accounts
-export const deleteAll = mutation({
+// Delete all accounts (internal only - admin operation)
+export const deleteAll = internalMutation({
   args: {},
+  returns: v.object({ deleted: v.number() }),
   handler: async (ctx) => {
     const accounts = await ctx.db.query("accounts").collect();
     for (const account of accounts) {
@@ -152,9 +192,10 @@ export const deleteAll = mutation({
   },
 });
 
-// Remove duplicate accounts (keep first occurrence of each address)
-export const removeDuplicates = mutation({
+// Remove duplicate accounts (internal only - admin operation)
+export const removeDuplicates = internalMutation({
   args: {},
+  returns: v.object({ removed: v.number(), remaining: v.number() }),
   handler: async (ctx) => {
     const accounts = await ctx.db.query("accounts").collect();
     const seenAddresses = new Set<string>();
@@ -174,9 +215,17 @@ export const removeDuplicates = mutation({
   },
 });
 
-// Delete account by address (and its alerts)
-export const deleteByAddress = mutation({
+// Delete account by address (internal only - admin operation)
+export const deleteByAddress = internalMutation({
   args: { address: v.string() },
+  returns: v.union(
+    v.object({ deleted: v.literal(false), message: v.string() }),
+    v.object({
+      deleted: v.literal(true),
+      accountId: v.id("accounts"),
+      alertsDeleted: v.number(),
+    })
+  ),
   handler: async (ctx, { address }) => {
     const account = await ctx.db
       .query("accounts")
@@ -184,7 +233,7 @@ export const deleteByAddress = mutation({
       .first();
 
     if (!account) {
-      return { deleted: false, message: "Account not found" };
+      return { deleted: false as const, message: "Account not found" };
     }
 
     // Delete associated alerts
@@ -201,7 +250,7 @@ export const deleteByAddress = mutation({
     await ctx.db.delete(account._id);
 
     return {
-      deleted: true,
+      deleted: true as const,
       accountId: account._id,
       alertsDeleted: alerts.length,
     };

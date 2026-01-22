@@ -137,7 +137,9 @@ export async function POST(request: NextRequest) {
 
     if (clear) {
       console.log("[Sync] Clearing existing markets...");
-      const result = await convex.mutation(api.markets.deleteAll, {});
+      const result = await convex.mutation(api.markets.deleteAll, {
+        adminSecret: process.env.ADMIN_SECRET,
+      });
       console.log(`[Sync] Deleted ${result.deleted} old markets`);
     }
 

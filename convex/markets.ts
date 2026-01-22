@@ -1,9 +1,42 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 
+// Outcome validator
+const outcomeValidator = v.object({
+  name: v.string(),
+  tokenId: v.string(),
+  price: v.number(),
+});
+
+// Market validator for return types
+const marketValidator = v.object({
+  _id: v.id("markets"),
+  _creationTime: v.number(),
+  polymarketId: v.string(),
+  slug: v.string(),
+  question: v.string(),
+  category: v.string(),
+  endDate: v.optional(v.number()),
+  isActive: v.boolean(),
+  totalVolume: v.number(),
+  outcomes: v.array(outcomeValidator),
+  lastSyncedAt: v.number(),
+  lastAnalyzedAt: v.optional(v.number()),
+  lastAnalyzedTradeTimestamp: v.optional(v.number()),
+  cachedContext: v.optional(
+    v.object({
+      avgTradeSize: v.number(),
+      totalVolume: v.number(),
+      totalHolders: v.number(),
+      cachedAt: v.number(),
+    })
+  ),
+});
+
 // Get all active markets, sorted by volume
 export const listActive = query({
   args: {},
+  returns: v.array(marketValidator),
   handler: async (ctx) => {
     const markets = await ctx.db
       .query("markets")
@@ -14,10 +47,17 @@ export const listActive = query({
   },
 });
 
-// Delete all markets (for cleanup)
+// Delete all markets (admin operation - requires ADMIN_SECRET env var)
 export const deleteAll = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { adminSecret: v.optional(v.string()) },
+  returns: v.object({ deleted: v.number() }),
+  handler: async (ctx, { adminSecret }) => {
+    // Verify admin secret if ADMIN_SECRET env var is set
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (expectedSecret && adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized: invalid or missing admin secret");
+    }
+
     const markets = await ctx.db.query("markets").collect();
     for (const market of markets) {
       await ctx.db.delete(market._id);
@@ -29,6 +69,7 @@ export const deleteAll = mutation({
 // Get markets by category
 export const listByCategory = query({
   args: { category: v.string() },
+  returns: v.array(marketValidator),
   handler: async (ctx, { category }) => {
     return await ctx.db
       .query("markets")
@@ -40,6 +81,7 @@ export const listByCategory = query({
 // Get a single market by Polymarket ID
 export const getByPolymarketId = query({
   args: { polymarketId: v.string() },
+  returns: v.union(marketValidator, v.null()),
   handler: async (ctx, { polymarketId }) => {
     return await ctx.db
       .query("markets")
@@ -58,14 +100,9 @@ export const upsert = mutation({
     endDate: v.optional(v.number()),
     isActive: v.boolean(),
     totalVolume: v.number(),
-    outcomes: v.array(
-      v.object({
-        name: v.string(),
-        tokenId: v.string(),
-        price: v.number(),
-      }),
-    ),
+    outcomes: v.array(outcomeValidator),
   },
+  returns: v.id("markets"),
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("markets")
@@ -92,6 +129,7 @@ export const upsert = mutation({
 // Internal mutation for scheduled sync (called by cron)
 export const syncFromPolymarket = internalMutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     // In production, this would fetch from Polymarket API
     // For now, just log that sync was triggered
@@ -103,5 +141,6 @@ export const syncFromPolymarket = internalMutation({
       payload: { marketsUpdated: 0 },
       timestamp: Date.now(),
     });
+    return null;
   },
 });

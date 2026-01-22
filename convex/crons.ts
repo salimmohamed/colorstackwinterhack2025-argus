@@ -11,6 +11,7 @@ crons.interval(
   "sync-markets",
   { minutes: 30 },
   internal.autonomousActions.syncMarketsFromPolymarket,
+  {}
 );
 
 /**
@@ -21,6 +22,7 @@ crons.interval(
   "rules-detection",
   { hours: 2 },
   internal.autonomousActions.runRulesDetection,
+  {}
 );
 
 /**
@@ -32,16 +34,18 @@ crons.interval(
   "ai-agent-analysis",
   { hours: 12 },
   internal.autonomousActions.triggerAIAgent,
+  {}
 );
 
 /**
- * Clean up old activity feed entries daily
+ * Clean up old activity feed entries daily at 4 AM UTC
  * Cost: FREE
  */
-crons.daily(
+crons.cron(
   "cleanup-activity-feed",
-  { hourUTC: 4, minuteUTC: 0 },
+  "0 4 * * *",
   internal.activityFeed.cleanup,
+  {}
 );
 
 export default crons;
