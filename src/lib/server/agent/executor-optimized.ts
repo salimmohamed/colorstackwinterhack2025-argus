@@ -341,7 +341,33 @@ function mapSignalType(
 }
 
 /**
+ * Calculate trade count penalty (higher trades = lower risk)
+ * Returns negative number to subtract from risk score
+ */
+function calculateTradeCountPenalty(trades: number): number {
+  if (trades <= 10) return 0;
+  if (trades <= 25) return -5;
+  if (trades <= 50) return -12;
+  if (trades <= 100) return -22;
+  if (trades <= 200) return -35;
+  if (trades <= 350) return -45;
+  if (trades <= 500) return -52;
+  return -60; // 500+ trades - heavy penalty
+}
+
+/**
+ * Map risk score to severity
+ */
+function scoreToSeverity(score: number): "low" | "medium" | "high" | "critical" {
+  if (score >= 85) return "critical";
+  if (score >= 70) return "high";
+  if (score >= 55) return "medium";
+  return "low";
+}
+
+/**
  * Flag account - SAVES TO CONVEX
+ * Applies hard filters and trade count penalties
  */
 export async function flagSuspiciousAccountOptimized(params: {
   address: string;
@@ -365,51 +391,85 @@ export async function flagSuspiciousAccountOptimized(params: {
     // Get account data from cache
     const accountData = accountCache.get(normalizedAddress)?.data;
     const fullAddress = accountData?.addr || normalizedAddress;
-
-    // HARD FILTER: Reject accounts with negative or low profit
-    // Insiders make money. If you're losing, you're not an insider.
-    const MIN_PROFIT_TO_FLAG = 100; // $100 minimum
+    const tradeCount = accountData?.trades || 0;
     const accountProfit = accountData?.pnl || 0;
+    const uniqueMarkets = accountData?.markets || 0;
+
+    // HARD FILTER 1: Reject accounts with 350+ trades (professional traders)
+    if (tradeCount >= 350) {
+      console.log(
+        `[Agent] REJECTED FLAG: ${normalizedAddress.slice(0, 10)} - ${tradeCount} trades (professional trader)`,
+      );
+      return { success: false, id: "rejected_high_trades" };
+    }
+
+    // HARD FILTER 2: Reject accounts with negative or low profit
+    const MIN_PROFIT_TO_FLAG = 100; // $100 minimum
     if (accountProfit < MIN_PROFIT_TO_FLAG) {
       console.log(
         `[Agent] REJECTED FLAG: ${normalizedAddress.slice(0, 10)} - profit $${accountProfit.toLocaleString()} below threshold`,
       );
-      return {
-        success: false,
-        id: "rejected",
-      };
+      return { success: false, id: "rejected_low_profit" };
     }
 
+    // HARD FILTER 3: Reject highly diversified accounts (10+ markets)
+    if (uniqueMarkets >= 10) {
+      console.log(
+        `[Agent] REJECTED FLAG: ${normalizedAddress.slice(0, 10)} - ${uniqueMarkets} markets (diversified trader)`,
+      );
+      return { success: false, id: "rejected_diversified" };
+    }
+
+    // Calculate adjusted risk score with trade count penalty
+    const metrics = params.evidence?.metrics as Record<string, unknown> | undefined;
+    const originalScore = (metrics?.riskScore as number) || 50;
+    const tradeCountPenalty = calculateTradeCountPenalty(tradeCount);
+    const adjustedScore = Math.max(0, Math.min(100, originalScore + tradeCountPenalty));
+
+    // HARD FILTER 4: Reject if adjusted score is too low
+    if (adjustedScore < 40) {
+      console.log(
+        `[Agent] REJECTED FLAG: ${normalizedAddress.slice(0, 10)} - adjusted score ${adjustedScore} (original: ${originalScore}, penalty: ${tradeCountPenalty})`,
+      );
+      return { success: false, id: "rejected_low_score" };
+    }
+
+    // Recalculate severity based on adjusted score
+    const adjustedSeverity = scoreToSeverity(adjustedScore);
+
+    console.log(
+      `[Agent] Score adjustment: ${originalScore} + (${tradeCountPenalty}) = ${adjustedScore} → ${adjustedSeverity}`,
+    );
+
     // Upsert account
-    const metrics = params.evidence?.metrics as
-      | Record<string, unknown>
-      | undefined;
     const accountId = await convex.mutation(api.accounts.upsert, {
       address: fullAddress.toLowerCase(),
       displayName: accountData?.name || undefined,
-      totalTrades: accountData?.trades || 0,
+      totalTrades: tradeCount,
       totalVolume: accountData?.vol || 0,
       winRate: accountData?.winRate || 0,
-      riskScore: (metrics?.riskScore as number) || 50,
+      riskScore: adjustedScore,
       flags: accountData?.flags || [params.signalType],
     });
 
-    // Create alert (marketId omitted - would need Convex ID lookup)
+    // Create alert with adjusted score and severity
     await convex.mutation(api.alerts.create, {
       accountId,
-      // Don't pass marketId - it's a condition ID, not a Convex ID
-      severity: params.severity,
+      severity: adjustedSeverity,
       signalType: mapSignalType(params.signalType),
       title: params.title,
       description: params.reasoning,
       evidence: {
-        metrics: params.evidence?.metrics || {
-          riskScore: 50,
-          totalProfit: accountData?.pnl || 0,
+        metrics: {
+          riskScore: adjustedScore,
+          originalRiskScore: originalScore,
+          tradeCountPenalty: tradeCountPenalty,
+          totalProfit: accountProfit,
           totalVolume: accountData?.vol || 0,
           winRate: accountData?.winRate || 0,
           accountAgeDays: accountData?.age || 0,
-          totalTrades: accountData?.trades || 0,
+          totalTrades: tradeCount,
+          uniqueMarketsTraded: uniqueMarkets,
         },
         reasoning: params.reasoning,
       },

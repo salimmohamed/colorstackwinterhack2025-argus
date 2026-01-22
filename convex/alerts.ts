@@ -106,7 +106,7 @@ export const get = query({
   },
 });
 
-// Create a new alert
+// Create a new alert (with deduplication)
 export const create = mutation({
   args: {
     accountId: v.id("accounts"),
@@ -121,11 +121,45 @@ export const create = mutation({
   returns: v.id("alerts"),
   handler: async (ctx, args) => {
     const now = Date.now();
+    const DEDUP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
     // Get account address for denormalized display
     const account = await ctx.db.get(args.accountId);
     if (!account) throw new Error(`Account not found: ${args.accountId}`);
 
+    // Check for existing alert for this account within dedup window
+    const existingAlerts = await ctx.db
+      .query("alerts")
+      .withIndex("by_account", (q) => q.eq("accountId", args.accountId))
+      .filter((q) => q.gt(q.field("createdAt"), now - DEDUP_WINDOW_MS))
+      .collect();
+
+    // If there's a recent alert for this account, update it instead of creating duplicate
+    if (existingAlerts.length > 0) {
+      // Find the most recent one
+      const mostRecent = existingAlerts.sort((a, b) => b.createdAt - a.createdAt)[0];
+
+      // Only update if new severity is higher or equal
+      const severityRank = { low: 1, medium: 2, high: 3, critical: 4 };
+      const newRank = severityRank[args.severity];
+      const existingRank = severityRank[mostRecent.severity];
+
+      if (newRank >= existingRank) {
+        // Update existing alert with new info
+        await ctx.db.patch(mostRecent._id, {
+          severity: args.severity,
+          title: args.title,
+          description: args.description,
+          evidence: args.evidence,
+          updatedAt: now,
+        });
+      }
+
+      // Return existing alert ID (no duplicate created)
+      return mostRecent._id;
+    }
+
+    // No existing alert - create new one
     const alertId = await ctx.db.insert("alerts", {
       ...args,
       accountAddress: account.address,
