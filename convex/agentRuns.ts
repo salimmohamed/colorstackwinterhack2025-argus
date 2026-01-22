@@ -192,7 +192,7 @@ export const triggerScheduledRun = internalMutation({
 
     if (activeMarkets.length === 0) {
       console.log("[Cron] No active markets to monitor");
-      return;
+      return null;
     }
 
     const marketIds = activeMarkets.map((m) => m._id);
