@@ -58,15 +58,19 @@ export default function AccountsPage() {
           <h1 className="text-2xl font-semibold text-[#fafafa]">
             Flagged Accounts
           </h1>
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as SortField)}
-            className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
-          >
-            <option value="riskScore">Sort by Risk Score</option>
-            <option value="volume">Sort by Volume</option>
-            <option value="winRate">Sort by Win Rate</option>
-          </select>
+          <div>
+            <label htmlFor="sort-accounts" className="sr-only">Sort accounts by</label>
+            <select
+              id="sort-accounts"
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value as SortField)}
+              className="px-4 py-2 bg-[#0a0a0a] border border-neutral-700 rounded text-neutral-400 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
+            >
+              <option value="riskScore">Sort by Risk Score</option>
+              <option value="volume">Sort by Volume</option>
+              <option value="winRate">Sort by Win Rate</option>
+            </select>
+          </div>
         </header>
 
         {sortedAccounts === undefined ? (
@@ -74,15 +78,15 @@ export default function AccountsPage() {
             <span className="text-3xl text-[var(--accent)] animate-pulse">
               ◉
             </span>
-            <p className="mt-4 text-sm text-[#666]">Loading accounts...</p>
+            <p className="mt-4 text-sm text-neutral-400">Loading accounts...</p>
           </div>
         ) : sortedAccounts.length === 0 ? (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
-            <span className="text-4xl text-[#333] block mb-4">◎</span>
+            <span className="text-4xl text-neutral-500 block mb-4">◎</span>
             <h3 className="text-base text-[#fafafa] mb-2">
               No flagged accounts
             </h3>
-            <p className="text-sm text-[#666]">
+            <p className="text-sm text-neutral-400">
               Accounts will appear here when the agent flags suspicious
               activity.
             </p>
@@ -90,7 +94,7 @@ export default function AccountsPage() {
         ) : (
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg overflow-hidden">
             {/* Table header */}
-            <div className="grid grid-cols-[2fr_1fr_0.75fr_1fr_0.75fr_0.75fr] gap-4 px-6 py-4 bg-[#0f0f0f] text-xs font-bold text-[#666] uppercase tracking-wider">
+            <div className="grid grid-cols-[2fr_1fr_0.75fr_1fr_0.75fr_0.75fr] gap-4 px-6 py-4 bg-[#0f0f0f] text-xs font-bold text-neutral-400 uppercase tracking-wider">
               <span>Account</span>
               <span>Risk Score</span>
               <span>Trades</span>
@@ -110,7 +114,7 @@ export default function AccountsPage() {
                     {shortenAddress(account.address)}
                   </span>
                   {account.displayName && (
-                    <span className="text-xs text-[#666]">
+                    <span className="text-xs text-neutral-400">
                       {account.displayName}
                     </span>
                   )}

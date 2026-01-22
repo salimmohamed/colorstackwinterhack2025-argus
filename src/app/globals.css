@@ -5,8 +5,8 @@
 :root {
   --background: #030303;
   --foreground: #e8e8e8;
-  --text-dim: #666;
-  --text-muted: #333;
+  --text-dim: #999;
+  --text-muted: #666;
   --accent: #f59e0b;
   --accent-glow: rgba(245, 158, 11, 0.4);
 }
@@ -60,4 +60,16 @@ body {
 
 .animate-fadeIn {
   animation: fadeIn 0.15s ease-out forwards;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

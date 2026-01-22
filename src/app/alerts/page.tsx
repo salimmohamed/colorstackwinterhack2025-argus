@@ -58,35 +58,43 @@ export default function AlertsPage() {
             <h1 className="text-2xl font-semibold text-[#fafafa]">
               ⚠ Detection Alerts
             </h1>
-            <p className="mt-2 text-sm text-[#666]">
+            <p className="mt-2 text-sm text-neutral-400">
               Suspicious trading patterns flagged by Argus
             </p>
           </div>
           <div className="flex gap-2">
-            <select
-              value={severityFilter}
-              onChange={(e) =>
-                setSeverityFilter(e.target.value as Severity | "")
-              }
-              className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
-            >
-              <option value="">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as Status | "")}
-              className="px-4 py-2 bg-[#0a0a0a] border border-[#252525] rounded text-[#888] text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer"
-            >
-              <option value="">All Statuses</option>
-              <option value="new">New</option>
-              <option value="investigating">Investigating</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="dismissed">Dismissed</option>
-            </select>
+            <div>
+              <label htmlFor="severity-filter" className="sr-only">Filter by severity</label>
+              <select
+                id="severity-filter"
+                value={severityFilter}
+                onChange={(e) =>
+                  setSeverityFilter(e.target.value as Severity | "")
+                }
+                className="px-4 py-2 bg-[#0a0a0a] border border-neutral-700 rounded text-neutral-400 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
+              >
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="status-filter" className="sr-only">Filter by status</label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as Status | "")}
+                className="px-4 py-2 bg-[#0a0a0a] border border-neutral-700 rounded text-neutral-400 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
+              >
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="investigating">Investigating</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="dismissed">Dismissed</option>
+              </select>
+            </div>
           </div>
         </header>
 
@@ -96,15 +104,15 @@ export default function AlertsPage() {
               <span className="text-3xl text-[var(--accent)] animate-pulse">
                 ◉
               </span>
-              <p className="mt-4 text-sm text-[#666]">Loading alerts...</p>
+              <p className="mt-4 text-sm text-neutral-400">Loading alerts...</p>
             </div>
           ) : filteredAlerts.length === 0 ? (
             <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-16 text-center">
-              <span className="text-4xl text-[#333] block mb-4">◎</span>
+              <span className="text-4xl text-neutral-500 block mb-4">◎</span>
               <h3 className="text-base text-[#fafafa] mb-2">
                 No alerts detected
               </h3>
-              <p className="text-sm text-[#666]">
+              <p className="text-sm text-neutral-400">
                 {severityFilter || statusFilter
                   ? "No alerts match the selected filters."
                   : "The agent will create alerts when it detects suspicious trading activity."}
@@ -125,7 +133,7 @@ export default function AlertsPage() {
                   >
                     {alert.severity}
                   </span>
-                  <span className="text-xs text-[#666] capitalize">
+                  <span className="text-xs text-neutral-400 capitalize">
                     {alert.signalType.replace(/_/g, " ")}
                   </span>
                   <span
@@ -145,12 +153,12 @@ export default function AlertsPage() {
                 <h3 className="text-base font-medium text-[#fafafa] mb-2">
                   {alert.title}
                 </h3>
-                <p className="text-sm text-[#666] leading-relaxed mb-3">
+                <p className="text-sm text-neutral-400 leading-relaxed mb-3">
                   {alert.evidence.reasoning.slice(0, 150)}...
                 </p>
-                <div className="flex justify-between items-center pt-3 border-t border-[#1a1a1a] text-xs text-[#444]">
+                <div className="flex justify-between items-center pt-3 border-t border-[#1a1a1a] text-xs text-neutral-500">
                   <span className="font-mono">
-                    <span className="text-[#333]">Account: </span>
+                    <span className="text-neutral-500">Account: </span>
                     {alert.accountAddress.slice(0, 6)}...
                     {alert.accountAddress.slice(-4)}
                   </span>
