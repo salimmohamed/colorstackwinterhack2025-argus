@@ -1,9 +1,54 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 
+// Tool call validator with typed input/output
+const toolCallValidator = v.object({
+  tool: v.string(),
+  input: v.object({
+    marketId: v.optional(v.string()),
+    address: v.optional(v.string()),
+    severity: v.optional(v.string()),
+  }),
+  output: v.object({
+    trades: v.optional(v.number()),
+    suspicious: v.optional(v.number()),
+    age: v.optional(v.number()),
+    winRate: v.optional(v.number()),
+    success: v.optional(v.boolean()),
+  }),
+  timestamp: v.number(),
+});
+
+// Tokens used validator
+const tokensUsedValidator = v.object({
+  input: v.number(),
+  output: v.number(),
+});
+
+// Agent run validator for return types
+const agentRunValidator = v.object({
+  _id: v.id("agentRuns"),
+  _creationTime: v.number(),
+  startedAt: v.number(),
+  completedAt: v.optional(v.number()),
+  status: v.union(v.literal("running"), v.literal("completed"), v.literal("failed")),
+  triggerType: v.union(
+    v.literal("scheduled"),
+    v.literal("manual"),
+    v.literal("realtime_trigger")
+  ),
+  marketIds: v.array(v.id("markets")),
+  accountsAnalyzed: v.number(),
+  alertsGenerated: v.number(),
+  toolCalls: v.array(toolCallValidator),
+  tokensUsed: tokensUsedValidator,
+  error: v.optional(v.string()),
+});
+
 // List recent agent runs
 export const listRecent = query({
   args: { limit: v.optional(v.number()) },
+  returns: v.array(agentRunValidator),
   handler: async (ctx, { limit }) => {
     return await ctx.db
       .query("agentRuns")
@@ -16,6 +61,7 @@ export const listRecent = query({
 // Get a single agent run
 export const get = query({
   args: { id: v.id("agentRuns") },
+  returns: v.union(agentRunValidator, v.null()),
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
@@ -27,10 +73,11 @@ export const start = mutation({
     triggerType: v.union(
       v.literal("scheduled"),
       v.literal("manual"),
-      v.literal("realtime_trigger"),
+      v.literal("realtime_trigger")
     ),
     marketIds: v.array(v.id("markets")),
   },
+  returns: v.id("agentRuns"),
   handler: async (ctx, { triggerType, marketIds }) => {
     const now = Date.now();
 
@@ -64,23 +111,10 @@ export const updateProgress = mutation({
     runId: v.id("agentRuns"),
     accountsAnalyzed: v.optional(v.number()),
     alertsGenerated: v.optional(v.number()),
-    toolCalls: v.optional(
-      v.array(
-        v.object({
-          tool: v.string(),
-          input: v.any(),
-          output: v.any(),
-          timestamp: v.number(),
-        }),
-      ),
-    ),
-    tokensUsed: v.optional(
-      v.object({
-        input: v.number(),
-        output: v.number(),
-      }),
-    ),
+    toolCalls: v.optional(v.array(toolCallValidator)),
+    tokensUsed: v.optional(tokensUsedValidator),
   },
+  returns: v.null(),
   handler: async (ctx, { runId, ...updates }) => {
     const run = await ctx.db.get(runId);
     if (!run) throw new Error(`Agent run not found: ${runId}`);
@@ -91,6 +125,7 @@ export const updateProgress = mutation({
       toolCalls: updates.toolCalls ?? run.toolCalls,
       tokensUsed: updates.tokensUsed ?? run.tokensUsed,
     });
+    return null;
   },
 });
 
@@ -100,19 +135,10 @@ export const complete = mutation({
     runId: v.id("agentRuns"),
     accountsAnalyzed: v.number(),
     alertsGenerated: v.number(),
-    toolCalls: v.array(
-      v.object({
-        tool: v.string(),
-        input: v.any(),
-        output: v.any(),
-        timestamp: v.number(),
-      }),
-    ),
-    tokensUsed: v.object({
-      input: v.number(),
-      output: v.number(),
-    }),
+    toolCalls: v.array(toolCallValidator),
+    tokensUsed: tokensUsedValidator,
   },
+  returns: v.null(),
   handler: async (ctx, { runId, ...updates }) => {
     const now = Date.now();
 
@@ -132,6 +158,7 @@ export const complete = mutation({
       },
       timestamp: now,
     });
+    return null;
   },
 });
 
@@ -141,18 +168,21 @@ export const fail = mutation({
     runId: v.id("agentRuns"),
     error: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, { runId, error }) => {
     await ctx.db.patch(runId, {
       status: "failed",
       completedAt: Date.now(),
       error,
     });
+    return null;
   },
 });
 
 // Trigger a scheduled monitoring run (called by cron)
 export const triggerScheduledRun = internalMutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     // Get all active markets to monitor
     const activeMarkets = await ctx.db
@@ -195,5 +225,6 @@ export const triggerScheduledRun = internalMutation({
 
     // Note: In production, this would trigger the actual agent via an HTTP action
     // For now, we just log that monitoring was triggered
+    return null;
   },
 });
