@@ -47,12 +47,17 @@ export const listActive = query({
   },
 });
 
-// Delete all markets (admin operation)
-// TODO: Add authentication check when auth is implemented
+// Delete all markets (admin operation - requires ADMIN_SECRET env var)
 export const deleteAll = mutation({
-  args: {},
+  args: { adminSecret: v.optional(v.string()) },
   returns: v.object({ deleted: v.number() }),
-  handler: async (ctx) => {
+  handler: async (ctx, { adminSecret }) => {
+    // Verify admin secret if ADMIN_SECRET env var is set
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (expectedSecret && adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized: invalid or missing admin secret");
+    }
+
     const markets = await ctx.db.query("markets").collect();
     for (const market of markets) {
       await ctx.db.delete(market._id);
