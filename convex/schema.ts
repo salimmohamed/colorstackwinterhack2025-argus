@@ -98,7 +98,18 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     evidence: v.object({
-      metrics: v.any(),
+      metrics: v.object({
+        riskScore: v.optional(v.number()),
+        originalRiskScore: v.optional(v.number()),
+        tradeCountPenalty: v.optional(v.number()),
+        probability: v.optional(v.number()),
+        totalProfit: v.optional(v.number()),
+        totalVolume: v.optional(v.number()),
+        winRate: v.optional(v.number()),
+        accountAgeDays: v.optional(v.number()),
+        totalTrades: v.optional(v.number()),
+        uniqueMarketsTraded: v.optional(v.number()),
+      }),
       reasoning: v.string(),
     }),
     status: v.union(
@@ -136,8 +147,18 @@ export default defineSchema({
     toolCalls: v.array(
       v.object({
         tool: v.string(),
-        input: v.any(),
-        output: v.any(),
+        input: v.object({
+          marketId: v.optional(v.string()),
+          address: v.optional(v.string()),
+          severity: v.optional(v.string()),
+        }),
+        output: v.object({
+          trades: v.optional(v.number()),
+          suspicious: v.optional(v.number()),
+          age: v.optional(v.number()),
+          winRate: v.optional(v.number()),
+          success: v.optional(v.boolean()),
+        }),
         timestamp: v.number(),
       }),
     ),
@@ -160,7 +181,24 @@ export default defineSchema({
       v.literal("market_synced"),
       v.literal("detection_completed"),
     ),
-    payload: v.any(),
+    payload: v.object({
+      // alert_created
+      alertId: v.optional(v.id("alerts")),
+      severity: v.optional(v.string()),
+      title: v.optional(v.string()),
+      accountAddress: v.optional(v.string()),
+      // agent_started / agent_completed
+      runId: v.optional(v.id("agentRuns")),
+      triggerType: v.optional(v.string()),
+      accountsAnalyzed: v.optional(v.number()),
+      alertsGenerated: v.optional(v.number()),
+      duration: v.optional(v.number()),
+      // market_synced
+      marketsUpdated: v.optional(v.number()),
+      // detection_completed
+      mode: v.optional(v.string()),
+      suspectsFound: v.optional(v.number()),
+    }),
     timestamp: v.number(),
   }).index("by_timestamp", ["timestamp"]),
 });
