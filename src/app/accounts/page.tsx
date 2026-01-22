@@ -64,7 +64,6 @@ export default function AccountsPage() {
               id="sort-accounts"
               value={sortField}
               onChange={(e) => setSortField(e.target.value as SortField)}
-              aria-label="Sort accounts by"
               className="px-4 py-2 bg-[#0a0a0a] border border-neutral-700 rounded text-neutral-400 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
             >
               <option value="riskScore">Sort by Risk Score</option>

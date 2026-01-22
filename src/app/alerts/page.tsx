@@ -71,7 +71,6 @@ export default function AlertsPage() {
                 onChange={(e) =>
                   setSeverityFilter(e.target.value as Severity | "")
                 }
-                aria-label="Filter by severity"
                 className="px-4 py-2 bg-[#0a0a0a] border border-neutral-700 rounded text-neutral-400 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
               >
                 <option value="">All Severities</option>
@@ -87,7 +86,6 @@ export default function AlertsPage() {
                 id="status-filter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as Status | "")}
-                aria-label="Filter by status"
                 className="px-4 py-2 bg-[#0a0a0a] border border-neutral-700 rounded text-neutral-400 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1 focus:ring-offset-[#030303]"
               >
                 <option value="">All Statuses</option>
