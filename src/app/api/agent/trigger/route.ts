@@ -6,6 +6,13 @@ import { api } from "../../../../../convex/_generated/api";
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(request: NextRequest) {
+  // Verify admin secret
+  const auth = request.headers.get("authorization");
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token || token !== process.env.ADMIN_SECRET) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
 
