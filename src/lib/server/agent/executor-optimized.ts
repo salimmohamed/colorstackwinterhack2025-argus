@@ -25,8 +25,8 @@ const MIN_TRADE_SIZE_USD = 50; // Lowered to catch more trades
 const CONTEXT_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 const ACCOUNT_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-// Cache slug -> conditionId resolutions
-const slugToConditionIdCache = new Map<string, string>();
+// Cache slug -> conditionId resolutions (stores arrays for event slugs with multiple markets)
+const slugToConditionIdCache = new Map<string, string[]>();
 
 // In-memory caches (would be Convex in production)
 const marketContextCache = new Map<
@@ -140,10 +140,9 @@ export async function fetchMarketActivityOptimized(
   );
 
   // Filter to only trades after checkpoint
-  const activity = allActivity;
-  const newTrades = sinceTimestamp
-    ? activity.filter((a) => a.timestamp > sinceTimestamp)
-    : activity;
+    const newTrades = sinceTimestamp
+    ? allActivity.filter((a) => a.timestamp > sinceTimestamp)
+    : allActivity;
 
   // Build context if not cached
   if (!context) {
@@ -163,15 +162,15 @@ export async function fetchMarketActivityOptimized(
       );
     }
 
-    const totalVol = activity.reduce(
+    const totalVol = allActivity.reduce(
       (s, t) => s + (t.usdcSize ?? t.size * t.price),
       0,
     );
-    const avgTrade = activity.length > 0 ? totalVol / activity.length : 0;
+    const avgTrade = allActivity.length > 0 ? totalVol / allActivity.length : 0;
 
     // Top 5 traders only
     const traderVols = new Map<string, number>();
-    for (const t of activity) {
+    for (const t of allActivity) {
       const cur = traderVols.get(t.proxyWallet) || 0;
       traderVols.set(t.proxyWallet, cur + (t.usdcSize ?? t.size * t.price));
     }
@@ -185,7 +184,7 @@ export async function fetchMarketActivityOptimized(
       q: eventTitle.slice(0, 50),
       avgTrade: Math.round(avgTrade),
       vol24h: Math.round(totalVol),
-      traders: new Set(activity.map((a) => a.proxyWallet)).size,
+      traders: new Set(allActivity.map((a) => a.proxyWallet)).size,
       topTraders,
     };
 
@@ -209,7 +208,7 @@ export async function fetchMarketActivityOptimized(
     id: marketId,
     newTrades: compressedTrades,
     context,
-    checkpoint: activity[0]?.timestamp || Date.now(),
+    checkpoint: allActivity[0]?.timestamp || Date.now(),
   };
 }
 
@@ -298,12 +297,12 @@ export async function fetchAccountDataOptimized(
 async function resolveConditionIds(marketId: string): Promise<string[]> {
   if (/^0x[0-9a-fA-F]+$/.test(marketId)) return [marketId];
   const cached = slugToConditionIdCache.get(marketId);
-  if (cached) return [cached];
+  if (cached) return cached;
 
   // Try as market slug first
   const market = await gammaClient.getMarketBySlug(marketId);
   if (market?.conditionId) {
-    slugToConditionIdCache.set(marketId, market.conditionId);
+    slugToConditionIdCache.set(marketId, [market.conditionId]);
     return [market.conditionId];
   }
 
@@ -313,9 +312,8 @@ async function resolveConditionIds(marketId: string): Promise<string[]> {
     const ids = event.markets
       .filter((m: { conditionId: string }) => m.conditionId)
       .map((m: { conditionId: string }) => m.conditionId);
-    // Cache the first one for the slug (used for single-market lookups)
     if (ids.length > 0) {
-      slugToConditionIdCache.set(marketId, ids[0]);
+      slugToConditionIdCache.set(marketId, ids);
     }
     console.log(`[Executor] Event "${marketId}" has ${ids.length} markets`);
     return ids;
