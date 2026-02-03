@@ -699,7 +699,10 @@ export const triggerAIAgent = internalAction({
       // Call the Next.js API
       const response = await fetch(`${appUrl}/api/agent/trigger`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.ADMIN_SECRET}`,
+        },
         body: JSON.stringify({
           optimized: true,
           maxIterations: 100,

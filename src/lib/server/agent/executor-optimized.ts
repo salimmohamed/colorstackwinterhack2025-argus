@@ -25,6 +25,9 @@ const MIN_TRADE_SIZE_USD = 50; // Lowered to catch more trades
 const CONTEXT_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 const ACCOUNT_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
+// Cache slug -> conditionId resolutions (stores arrays for event slugs with multiple markets)
+const slugToConditionIdCache = new Map<string, string[]>();
+
 // In-memory caches (would be Convex in production)
 const marketContextCache = new Map<
   string,
@@ -107,59 +110,81 @@ export async function fetchMarketActivityOptimized(
     context = cached.data;
   }
 
-  // Fetch only new trades (incremental)
-  const hoursBack = sinceTimestamp ? 168 : 72; // 7 days for incremental context
+  // Resolve slug to condition IDs (Polymarket /trades API requires condition IDs)
+  const conditionIds = await resolveConditionIds(marketId);
+  const isSlug = conditionIds[0] !== marketId;
+  if (isSlug) {
+    console.log(`[Executor] Resolved "${marketId}" to ${conditionIds.length} condition IDs`);
+  }
+
+  // Fetch trades across all condition IDs (for events with multiple markets)
+  const hoursBack = sinceTimestamp ? 168 : 72;
+  // Limit concurrent fetches to avoid rate limiting
+  const idsToFetch = conditionIds.slice(0, 10);
   console.log(
-    `[Executor] Fetching market activity for ${marketId.slice(0, 15)}...`,
+    `[Executor] Fetching trades from ${idsToFetch.length} market(s)...`,
   );
-  const activity = await dataApiClient.getMarketActivity(
-    marketId,
-    hoursBack,
-    MIN_TRADE_SIZE_USD,
-  );
+
+  const allActivity = (
+    await Promise.all(
+      idsToFetch.map((cid) =>
+        dataApiClient.getMarketActivity(cid, hoursBack, MIN_TRADE_SIZE_USD),
+      ),
+    )
+  ).flat();
+
+  // Sort by timestamp descending
+  allActivity.sort((a, b) => b.timestamp - a.timestamp);
   console.log(
-    `[Executor] Got ${activity.length} trades (min $${MIN_TRADE_SIZE_USD})`,
+    `[Executor] Got ${allActivity.length} trades (min $${MIN_TRADE_SIZE_USD})`,
   );
 
   // Filter to only trades after checkpoint
-  const newTrades = sinceTimestamp
-    ? activity.filter((a) => a.timestamp > sinceTimestamp)
-    : activity;
+    const newTrades = sinceTimestamp
+    ? allActivity.filter((a) => a.timestamp > sinceTimestamp)
+    : allActivity;
 
   // Build context if not cached
   if (!context) {
-    // Gamma API may fail with condition IDs, handle gracefully
-    let market = null;
+    // Get event title for context
+    let eventTitle = "Unknown";
     try {
-      market = await gammaClient.getMarketById(marketId);
+      if (isSlug) {
+        const event = await gammaClient.getEventBySlug(marketId);
+        if (event?.title) eventTitle = event.title;
+      } else {
+        const market = await gammaClient.getMarketById(conditionIds[0]);
+        if (market?.question) eventTitle = market.question;
+      }
     } catch (_e) {
       console.log(
         `[Executor] Gamma API unavailable for ${marketId.slice(0, 10)}, using activity data`,
       );
     }
-    const totalVol = activity.reduce(
+
+    const totalVol = allActivity.reduce(
       (s, t) => s + (t.usdcSize ?? t.size * t.price),
       0,
     );
-    const avgTrade = activity.length > 0 ? totalVol / activity.length : 0;
+    const avgTrade = allActivity.length > 0 ? totalVol / allActivity.length : 0;
 
     // Top 5 traders only
     const traderVols = new Map<string, number>();
-    for (const t of activity) {
+    for (const t of allActivity) {
       const cur = traderVols.get(t.proxyWallet) || 0;
       traderVols.set(t.proxyWallet, cur + (t.usdcSize ?? t.size * t.price));
     }
     const topTraders = [...traderVols.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([addr, vol]) => ({ addr, vol: Math.round(vol) })); // Store full address for reliable comparison
+      .map(([addr, vol]) => ({ addr, vol: Math.round(vol) }));
 
     context = {
       id: marketId,
-      q: market?.question?.slice(0, 50) || "Unknown",
+      q: eventTitle.slice(0, 50),
       avgTrade: Math.round(avgTrade),
       vol24h: Math.round(totalVol),
-      traders: new Set(activity.map((a) => a.proxyWallet)).size,
+      traders: new Set(allActivity.map((a) => a.proxyWallet)).size,
       topTraders,
     };
 
@@ -183,7 +208,7 @@ export async function fetchMarketActivityOptimized(
     id: marketId,
     newTrades: compressedTrades,
     context,
-    checkpoint: activity[0]?.timestamp || Date.now(),
+    checkpoint: allActivity[0]?.timestamp || Date.now(),
   };
 }
 
@@ -265,19 +290,56 @@ export async function fetchAccountDataOptimized(
 }
 
 /**
+ * Resolve a slug to condition IDs.
+ * Slugs can be either market slugs or event slugs (which contain multiple markets).
+ * Returns an array of condition IDs to analyze.
+ */
+async function resolveConditionIds(marketId: string): Promise<string[]> {
+  if (/^0x[0-9a-fA-F]+$/.test(marketId)) return [marketId];
+  const cached = slugToConditionIdCache.get(marketId);
+  if (cached) return cached;
+
+  // Try as market slug first
+  const market = await gammaClient.getMarketBySlug(marketId);
+  if (market?.conditionId) {
+    slugToConditionIdCache.set(marketId, [market.conditionId]);
+    return [market.conditionId];
+  }
+
+  // Try as event slug — returns multiple markets
+  const event = await gammaClient.getEventBySlug(marketId);
+  if (event?.markets?.length) {
+    const ids = event.markets
+      .filter((m: { conditionId: string }) => m.conditionId)
+      .map((m: { conditionId: string }) => m.conditionId);
+    if (ids.length > 0) {
+      slugToConditionIdCache.set(marketId, ids);
+    }
+    console.log(`[Executor] Event "${marketId}" has ${ids.length} markets`);
+    return ids;
+  }
+
+  console.warn(`[Executor] Could not resolve "${marketId}" to any condition IDs`);
+  return [marketId];
+}
+
+/**
  * Compare to market - COMPRESSED
  */
 export async function compareToMarketOptimized(
   address: string,
   marketId: string,
 ): Promise<CompressedComparison> {
+  const conditionIds = await resolveConditionIds(marketId);
+  const conditionIdSet = new Set(conditionIds.map((id) => id.toLowerCase()));
   const marketData = await fetchMarketActivityOptimized(marketId);
-  const holders = await dataApiClient.getMarketHolders(marketId);
+  // Get holders from first condition ID (representative)
+  const holders = await dataApiClient.getMarketHolders(conditionIds[0]);
 
-  // Find trader's volume in this market
+  // Find trader's volume across all sub-markets
   const accountActivity = await dataApiClient.getAccountActivity(address, 100);
   const marketTrades = accountActivity.filter(
-    (a) => a.conditionId === marketId,
+    (a) => conditionIdSet.has(a.conditionId?.toLowerCase()),
   );
   const traderLargest = Math.max(...marketTrades.map((t) => t.usdcSize), 0);
 
@@ -532,6 +594,7 @@ export function clearCaches() {
   marketContextCache.clear();
   accountCache.clear();
   analyzedAccounts.clear();
+  slugToConditionIdCache.clear();
 }
 
 /**
